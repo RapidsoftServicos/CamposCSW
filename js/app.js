@@ -78,6 +78,16 @@
     return item.lin + visualHeight(item) - 1;
   }
 
+  /** No Faces o grid ocupa ~Altura+3 (toolbar); botões na linha logo após LinFim somem por baixo. */
+  function gridVisualFim(item) {
+    const linPos = item.lin;
+    const altura = visualHeight(item);
+    const linFim = gridLinFim(item);
+    const limite = linFim - linPos + 3;
+    const heigth = Math.min(altura + 3, limite);
+    return linPos + heigth - 1;
+  }
+
   function gridConfLine(item) {
     const cod = item.cod || 1;
     const linPos = item.lin;
@@ -316,6 +326,15 @@
     if (state.items.filter((i) => i.type === "grid").length > 1) {
       msgs.push("Apenas 1 grid por tela neste editor");
     }
+    for (const grid of state.items.filter((i) => i.type === "grid")) {
+      const fimVis = gridVisualFim(grid);
+      const botAbaixo = state.items.filter(
+        (i) => (i.type === "botao" || i.type === "btnConsultar") && i.lin <= fimVis
+      );
+      if (botAbaixo.length) {
+        msgs.push(`Botão sob o grid (Faces ~até L${fimVis}): use linha ≥ ${fimVis + 1}`);
+      }
+    }
     const byLin = {};
     for (const item of state.items) {
       if (item.type === "grid") continue;
@@ -472,7 +491,7 @@
       const ideal = campo ? fmt(snapCol(campo.col - item.col)) : "COL_campo−1";
       el.propExtra.textContent = `Caixa da label (texto à direita). Para colar no campo use TAM≈${ideal}, não o tamanho da palavra.`;
     } else if (isGrid) {
-      el.propExtra.textContent = `Botões abaixo: linha ≥ ${gridLinFim(item) + 1}. Export: ${gridConfLine(item)}`;
+      el.propExtra.textContent = `Faces cobre até ~L${gridVisualFim(item)}. Botões: linha ≥ ${gridVisualFim(item) + 1}.`;
     } else {
       el.propExtra.textContent = `col,lin,tam → ${item.col},${item.lin},${item.tam} · Máx: ${maxTamFor(item)}`;
     }
