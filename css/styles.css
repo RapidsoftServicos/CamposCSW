@@ -70,8 +70,8 @@ button, input, textarea { font: inherit; color: inherit; }
 }
 
 #snippetOut {
-  min-height: 64px;
-  max-height: 90px;
+  min-height: 88px;
+  max-height: 120px;
   background: #0f172a;
   color: #f8fafc;
   border-color: #334155;
@@ -500,8 +500,8 @@ textarea {
 }
 
 #exportOut {
-  min-height: 100px;
-  max-height: 140px;
+  min-height: 130px;
+  max-height: 180px;
 }
 
 .hidden { display: none !important; }
