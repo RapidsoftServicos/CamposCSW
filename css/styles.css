@@ -346,6 +346,7 @@ button, input, textarea { font: inherit; color: inherit; }
 .item.display { background: var(--display); color: #355a3d; }
 .item.botao,
 .item.btnConsultar { background: var(--botao); justify-content: center; font-weight: 600; }
+.item.multiselect { background: #eef6ff; font-family: var(--mono); }
 
 .item .resize-handle {
   position: absolute;

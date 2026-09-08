@@ -67,7 +67,7 @@
           <button type="button" class="palette-item" data-type="btnConsultar">BtnConsultar</button>
         </div>
         <p class="hint">Clique para adicionar. Arraste no canvas. Clique no item para Copiar ou Excluir.</p>
-        <p class="hint">CSLE ocupa TAM + 2 colunas na tela (colchetes [ ]).</p>
+        <p class="hint">Campo CSLE no canvas usa o TAM; display costuma ficar em COL+TAM+1.</p>
       </section>
 
       <section id="propsSection" class="hidden">
@@ -139,8 +139,8 @@
       </section>
       <section>
         <h2>Importar</h2>
-        <p class="hint">Aceita tags <code>csw:</code> e <code>%CSLE</code> (usa só LIN,COL,TAM — até a 3ª vírgula).</p>
-        <textarea id="importIn" placeholder="1000ON do ^%CSLE(1,16,4,...&#10;; csw:label:1,1,15,Empresas&#10;; csw:display:21,1,10,ds1000" spellcheck="false"></textarea>
+        <p class="hint">Aceita <code>csw:</code>, <code>%CSLE</code> (LIN,COL,TAM) e <code>%CSUTIMM</code> (coords no final).</p>
+        <textarea id="importIn" placeholder="; csw:label:1,1,15,Empresas&#10;1000ON do ^%CSLE(1,16,4,...&#10;; csw:display:21,1,10,ds1000&#10;; csw:btnConsultar:50,2,..." spellcheck="false"></textarea>
         <button type="button" id="btnApplyImport" class="btn primary full">Aplicar no canvas</button>
       </section>
     </aside>
@@ -151,6 +151,6 @@
     <button type="button" data-action="delete" class="danger" role="menuitem">Excluir</button>
   </div>
 
-  <script src="js/app.js?v=4"></script>
+  <script src="js/app.js?v=5"></script>
 </body>
 </html>

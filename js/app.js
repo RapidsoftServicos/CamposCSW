@@ -49,6 +49,7 @@
     display: { text: "", tam: 20, idPrefix: "ds" },
     botao: { text: "Salvar", tam: 15, idPrefix: "bt" },
     btnConsultar: { text: "Consultar/Limpar", tam: 12, idPrefix: "btnConsultar" },
+    multiselect: { text: "Multiselect", tam: 12, idPrefix: "cp" },
   };
 
   function snapCol(v) {
@@ -60,8 +61,13 @@
   }
 
   function visualWidth(item) {
-    if (item.type === "campo") return Number(item.tam) + 2;
+    // No canvas usamos o TAM declarado.
+    // (Na tela real o CSLE ocupa ~TAM+2 pelos [ ], mas o display costuma ir em COL+TAM+1.)
     return Number(item.tam);
+  }
+
+  function maxTamFor(item) {
+    return Math.max(1, snapCol(state.cols - item.col + 1));
   }
 
   function uid() {
@@ -75,7 +81,7 @@
 
   function nextFieldLabel() {
     const used = state.items
-      .filter((i) => i.type === "campo")
+      .filter((i) => i.type === "campo" || i.type === "multiselect")
       .map((i) => Number(String(i.id).replace(/\D/g, "")))
       .filter((n) => !Number.isNaN(n));
     return used.length ? Math.max(...used) + 100 : 1000;
@@ -83,10 +89,10 @@
 
   function createItem(type, overrides = {}) {
     const def = defaultsByType[type];
-    const labelNum = type === "campo" || type === "display" ? nextFieldLabel() : state.nextSeq;
+    const labelNum = type === "campo" || type === "display" || type === "multiselect" ? nextFieldLabel() : state.nextSeq;
     let id = overrides.id;
     if (!id) {
-      if (type === "campo") id = `cp${labelNum}`;
+      if (type === "campo" || type === "multiselect") id = `cp${labelNum}`;
       else if (type === "display") id = `ds${labelNum}`;
       else if (type === "botao") id = `bt${(def.text || "Acao").replace(/\W/g, "")}`;
       else if (type === "btnConsultar") id = "btnConsultar";
@@ -102,7 +108,7 @@
       col: snapCol(overrides.col ?? 1),
       lin: Math.round(overrides.lin ?? 1),
       tam: snapCol(overrides.tam ?? def.tam),
-      labelNum: overrides.labelNum ?? (type === "campo" ? Number(String(id).replace(/\D/g, "")) || 1000 : null),
+      labelNum: overrides.labelNum ?? ((type === "campo" || type === "multiselect") ? Number(String(id).replace(/\D/g, "")) || 1000 : null),
     };
   }
 
@@ -160,7 +166,7 @@
         `\tquit:$$CSP^%CSW1UTI()`,
         "",
         `\t; CSLE = LIN,COL,TAM → ${item.lin},${fmt(item.col)},${fmt(item.tam)}`,
-        `\t; Visual na tela: ${visualWidth(item)} colunas (TAM+2)`,
+        `\t; Canvas: TAM ${fmt(item.tam)} · na tela real CSLE ~TAM+2 pelos [ ]`,
       ].join("\n");
       return { text, hint: "Linha CSLE", copyText };
     }
@@ -174,6 +180,12 @@
     if (item.type === "btnConsultar") {
       const text = `\t; csw:btnConsultar:${fmt(item.col)},${item.lin},2000^ROTINA,0500^ROTINA`;
       return { text, hint: "Tag btnConsultar", copyText: text };
+    }
+
+    if (item.type === "multiselect") {
+      const n = item.labelNum || Number(String(item.id).replace(/\D/g, "")) || 1100;
+      const text = `do ^%CSUTIMM(...,"${fmt(item.col)},${item.lin},${fmt(item.tam)},${n}^ROTINA")`;
+      return { text, hint: "Coords do multiselect (%CSUTIMM)", copyText: text };
     }
 
     return { text: "", hint: "", copyText: "" };
@@ -278,7 +290,7 @@
         for (let j = i + 1; j < list.length; j++) {
           const a = list[i];
           const b = list[j];
-          if (a.col < b.col + visualWidth(b) && b.col < a.col + visualWidth(a)) {
+          if (rangesOverlap(a.col, visualWidth(a), b.col, visualWidth(b))) {
             msgs.push(`Sobreposição L${a.lin}: ${a.id} × ${b.id}`);
           }
         }
@@ -287,13 +299,15 @@
     el.warnings.textContent = msgs.join(" · ");
   }
 
-  function maxTamFor(item) {
-    const extra = item.type === "campo" ? 2 : 0;
-    return Math.max(1, snapCol(state.cols - item.col + 1 - extra));
-  }
-
   function setItemTam(item, nextTam) {
     item.tam = clamp(snapCol(nextTam), 1, maxTamFor(item));
+  }
+
+  function rangesOverlap(a0, aW, b0, bW) {
+    // Intervalos meio-abertos [ini, ini+tam). Encostar na borda NÃO é sobreposição.
+    const a1 = a0 + aW;
+    const b1 = b0 + bW;
+    return a0 < b1 && b0 < a1 && Math.min(a1, b1) - Math.max(a0, b0) > 0.01;
   }
 
   function renderItem(item) {
@@ -310,10 +324,11 @@
     labelEl.className = "item-label";
     let label = item.id;
     if (item.type === "label") label = item.text || item.id;
-    if (item.type === "campo") label = `[${item.id} · tam ${fmt(item.tam)}]`;
-    if (item.type === "display") label = `${item.text || item.id} · ${fmt(item.tam)}`;
+    if (item.type === "campo") label = `[${item.id}]`;
+    if (item.type === "display") label = item.text || item.id;
     if (item.type === "botao") label = item.text || item.id;
     if (item.type === "btnConsultar") label = "Consultar / Limpar";
+    if (item.type === "multiselect") label = `[${item.id} MM]`;
     labelEl.textContent = label;
     node.appendChild(labelEl);
 
@@ -337,9 +352,9 @@
     el.propLin.value = item.lin;
     el.propTam.value = item.tam;
     if (item.type === "campo") {
-      el.propExtra.textContent = `Visual: ${visualWidth(item)} colunas (TAM ${item.tam} + 2). Máx. TAM: ${maxTamFor(item)}`;
+      el.propExtra.textContent = `TAM ${item.tam} (canvas). Na tela real o CSLE ocupa ~TAM+2 pelos [ ]. Máx: ${maxTamFor(item)}`;
     } else {
-      el.propExtra.textContent = `col,lin,tam → ${item.col},${item.lin},${item.tam} · Máx. TAM: ${maxTamFor(item)}`;
+      el.propExtra.textContent = `col,lin,tam → ${item.col},${item.lin},${item.tam} · Máx: ${maxTamFor(item)}`;
     }
   }
 
@@ -531,6 +546,25 @@
     });
   }
 
+  function parseCsutimmLine(line, labelHint) {
+    // Último parâmetro típico: "16,2,12,1100^ROTINA" → COL,LIN,TAM,label
+    const m = String(line).match(/"(\d+(?:\.\d+)?),(\d+),(\d+),(\d+)\^/);
+    if (!m) return null;
+    const col = Number(m[1]);
+    const lin = Number(m[2]);
+    const tam = Number(m[3]);
+    const labelNum = Number(m[4]);
+    if ([col, lin, tam, labelNum].some((n) => Number.isNaN(n))) return null;
+    return createItem("multiselect", {
+      col,
+      lin,
+      tam,
+      id: `cp${labelNum}`,
+      labelNum,
+      text: labelHint || `Multiselect cp${labelNum}`,
+    });
+  }
+
   function parseImport(text) {
     const items = [];
     let cols = state.cols;
@@ -544,7 +578,6 @@
       const line = raw.trim();
       if (!line) return;
 
-      // Comentário de label de negócio (; Descrição) — usado no próximo CSLE
       if (/^;\s*[^cC]/.test(line) || /^;\s*$/.test(line)) {
         if (!/csw:/i.test(line)) {
           pendingComment = line.replace(/^;\s*/, "").trim();
@@ -574,7 +607,13 @@
       }
       m = line.match(/csw:display:([^,]+),([^,]+),([^,]+),([^,\s]+)/i);
       if (m) {
-        items.push(createItem("display", { col: Number(m[1]), lin: Number(m[2]), tam: Number(m[3]), id: m[4].trim() }));
+        items.push(createItem("display", {
+          col: Number(m[1]),
+          lin: Number(m[2]),
+          tam: Number(m[3]),
+          id: m[4].trim(),
+          text: m[4].trim() === "ds1000" ? "Selecionados" : "",
+        }));
         tagCount++;
         pendingComment = "";
         return;
@@ -601,11 +640,20 @@
         return;
       }
 
-      // Campo CSLE: 1000ON do ^%CSLE(LIN,COL,TAM,...)
       if (/%CSLE\s*\(/i.test(line)) {
         const campo = parseCsleLine(line, pendingComment);
         if (campo) {
           items.push(campo);
+          csleCount++;
+        }
+        pendingComment = "";
+        return;
+      }
+
+      if (/%CSUTIMM\s*\(/i.test(line)) {
+        const mm = parseCsutimmLine(line, pendingComment);
+        if (mm) {
+          items.push(mm);
           csleCount++;
         }
         pendingComment = "";
@@ -635,6 +683,8 @@
 
   function loadExampleNoTab() {
     hideItemMenu();
+    el.ajCols.value = 70;
+    el.ajRows.value = 26;
     document.querySelector('input[name="layoutMode"][value="sem-tab"]').checked = true;
     setLayoutMode("sem-tab");
     state.items = [
@@ -642,7 +692,7 @@
       createItem("campo", { col: 16, lin: 1, tam: 4, id: "cp1000", labelNum: 1000, varName: "CDCE" }),
       createItem("display", { col: 21, lin: 1, tam: 10, id: "ds1000", text: "Selecionados" }),
       createItem("label", { col: 1, lin: 2, tam: 15, text: "Centro de Custo" }),
-      createItem("campo", { col: 16, lin: 2, tam: 12, id: "cp1100", labelNum: 1100 }),
+      createItem("multiselect", { col: 16, lin: 2, tam: 12, id: "cp1100", labelNum: 1100, text: "Selecionados" }),
       createItem("label", { col: 1, lin: 3, tam: 15, text: "Data Início" }),
       createItem("campo", { col: 16, lin: 3, tam: 8, id: "cp1200", labelNum: 1200, varName: "DATINI" }),
       createItem("display", { col: 25, lin: 3, tam: 10, id: "ds1200", text: "" }),
