@@ -516,16 +516,7 @@
       lin: Math.min(state.rows, state.items.length + 1),
     });
     if (type === "campo") item.text = `Campo ${item.id}`;
-    if (type === "label") {
-      const nome = window.prompt("Texto da label:", "Novo Label");
-      if (nome === null) return; // cancelou — não adiciona
-      item.text = String(nome).trim() || "Novo Label";
-      fitLabelTam(item);
-    }
-    if (type === "botao") {
-      const nome = window.prompt("Texto do botão:", item.text || "Salvar");
-      if (nome !== null && String(nome).trim()) item.text = String(nome).trim();
-    }
+    if (type === "label") item.text = "Novo Label";
     state.items.push(item);
     state.selectedId = item.uid;
     render();
