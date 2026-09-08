@@ -377,6 +377,8 @@ button, input, textarea { font: inherit; color: inherit; }
   z-index: 1;
   font-weight: 600;
   box-shadow: none;
+  /* Faixa inferior = toolbar Faces (+2) — botão não pode cair aqui */
+  box-shadow: inset 0 -70px 0 rgba(196, 92, 38, 0.12);
 }
 
 .item.grid .item-label {

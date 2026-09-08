@@ -69,29 +69,42 @@
     return Number(item.tam);
   }
 
+  function gridAltura(item) {
+    return Math.max(1, Number(item.altura) || 1);
+  }
+
   function visualHeight(item) {
-    if (item.type === "grid") return Math.max(1, Number(item.altura) || 1);
+    if (item.type === "grid") {
+      // Canvas = altura Faces (Altura+2), não só Altura do gridConf
+      return Math.max(1, gridVisualFim(item) - item.lin + 1);
+    }
     return 1;
   }
 
   function gridLinFim(item) {
-    return item.lin + visualHeight(item) - 1;
+    return item.lin + gridAltura(item) - 1;
   }
 
-  /** No Faces o grid ocupa ~Altura+3 (toolbar); botões na linha logo após LinFim somem por baixo. */
+  /** No Faces: height = min(Altura+3, LinFim−LinPos+3) → com LinFim=LinPos+Altura−1 vira Altura+2. */
   function gridVisualFim(item) {
     const linPos = item.lin;
-    const altura = visualHeight(item);
-    const linFim = gridLinFim(item);
+    const altura = gridAltura(item);
+    const linFim = linPos + altura - 1;
     const limite = linFim - linPos + 3;
     const heigth = Math.min(altura + 3, limite);
     return linPos + heigth - 1;
   }
 
+  function safeLinAbaixoDoGrid() {
+    const grid = state.items.find((i) => i.type === "grid");
+    if (!grid) return null;
+    return Math.min(state.rows, gridVisualFim(grid) + 1);
+  }
+
   function gridConfLine(item) {
     const cod = item.cod || 1;
     const linPos = item.lin;
-    const altura = visualHeight(item);
+    const altura = gridAltura(item);
     const linIni = linPos;
     const linFim = gridLinFim(item);
     return `set TABGRID(${cod})="; csw:gridConf:cod=${cod}; LinPos=${linPos}; Altura=${altura}; LinIni=${linIni}; LinFim=${linFim}; HabilitaNavegacao=1;"`;
@@ -311,7 +324,22 @@
   }
 
   function setItemAltura(item, nextAltura) {
-    item.altura = clamp(Math.round(Number(nextAltura) || 1), 1, Math.max(1, state.rows - item.lin + 1));
+    // Reserva 2 linhas do Faces (toolbar) para o grid ainda caber na AJ
+    const maxAlt = Math.max(1, state.rows - item.lin - 1);
+    item.altura = clamp(Math.round(Number(nextAltura) || 1), 1, maxAlt);
+  }
+
+  function adjustButtonsBelowGrid() {
+    const safe = safeLinAbaixoDoGrid();
+    if (safe == null) return 0;
+    let n = 0;
+    for (const b of state.items.filter((i) => i.type === "botao" || i.type === "btnConsultar")) {
+      if (b.lin < safe) {
+        b.lin = safe;
+        n += 1;
+      }
+    }
+    return n;
   }
 
   function validate() {
@@ -328,11 +356,12 @@
     }
     for (const grid of state.items.filter((i) => i.type === "grid")) {
       const fimVis = gridVisualFim(grid);
-      const botAbaixo = state.items.filter(
+      msgs.push(`Grid Faces cobre até L${fimVis} (Altura=${gridAltura(grid)} + toolbar)`);
+      const botSob = state.items.filter(
         (i) => (i.type === "botao" || i.type === "btnConsultar") && i.lin <= fimVis
       );
-      if (botAbaixo.length) {
-        msgs.push(`Botão sob o grid (Faces ~até L${fimVis}): use linha ≥ ${fimVis + 1}`);
+      if (botSob.length) {
+        msgs.push(`Botão sob o grid: use linha ≥ ${fimVis + 1} (ou “Ajustar botões abaixo do grid”)`);
       }
     }
     const byLin = {};
@@ -377,7 +406,6 @@
     item.tam = clamp(snapped, 1, maxTamFor(item));
   }
 
-  /** Estica labels até a coluna do campo da mesma linha (padrão Consistem: TAM ≈ COL_campo − COL_label). */
   function syncAj() {
     state.cols = clamp(Number(el.ajCols.value) || DEFAULT_COLS, 20, 108);
     state.rows = clamp(Number(el.ajRows.value) || DEFAULT_ROWS, 5, 28);
@@ -403,6 +431,7 @@
     state.rows = DEFAULT_ROWS;
   }
 
+  /** Estica labels até a coluna do campo da mesma linha (padrão Consistem: TAM ≈ COL_campo − COL_label). */
   function stretchLabelsToFields() {
     let n = 0;
     for (const label of state.items.filter((i) => i.type === "label")) {
@@ -447,7 +476,8 @@
     if (item.type === "btnConsultar") label = "Consultar / Limpar";
     if (item.type === "multiselect") label = `[${item.id} MM]`;
     if (item.type === "grid") {
-      label = `Grid cod=${item.cod || 1} · LinPos=${item.lin} · Altura=${visualHeight(item)} · LinFim=${gridLinFim(item)}`;
+      const fimVis = gridVisualFim(item);
+      label = `Grid · Altura=${gridAltura(item)} · LinFim=${gridLinFim(item)} · Faces até L${fimVis} → botão ≥ ${fimVis + 1}`;
     }
     labelEl.textContent = label;
     node.appendChild(labelEl);
@@ -491,7 +521,7 @@
       const ideal = campo ? fmt(snapCol(campo.col - item.col)) : "COL_campo−1";
       el.propExtra.textContent = `Caixa da label (texto à direita). Para colar no campo use TAM≈${ideal}, não o tamanho da palavra.`;
     } else if (isGrid) {
-      el.propExtra.textContent = `Faces cobre até ~L${gridVisualFim(item)}. Botões: linha ≥ ${gridVisualFim(item) + 1}.`;
+      el.propExtra.textContent = `No Consistem o grid cobre até L${gridVisualFim(item)} (não só LinFim=${gridLinFim(item)}). Botões: ≥ ${gridVisualFim(item) + 1}.`;
     } else {
       el.propExtra.textContent = `col,lin,tam → ${item.col},${item.lin},${item.tam} · Máx: ${maxTamFor(item)}`;
     }
@@ -584,6 +614,7 @@
     const startLin = item.lin;
     const startTam = item.tam;
     const startAltura = item.altura || 1;
+    const startFacesH = item.type === "grid" ? visualHeight(item) : 1;
     let moved = false;
 
     function onMove(e) {
@@ -591,7 +622,9 @@
       const dy = e.clientY - startY;
       if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
       if (resizingV || (resizingH && item.type === "grid")) {
-        setItemAltura(item, startAltura + dy / CELL_H);
+        // Arraste altera a altura Faces; Altura do gridConf = Faces − 2
+        const facesH = Math.max(3, Math.round(startFacesH + dy / CELL_H));
+        setItemAltura(item, facesH - 2);
       } else if (resizingH) {
         setItemTam(item, startTam + dx / CELL_W);
       } else if (item.type === "grid") {
@@ -643,7 +676,11 @@
     };
     if (type === "grid") {
       overrides.lin = Math.min(5, state.rows);
-      overrides.altura = Math.min(14, Math.max(3, state.rows - overrides.lin));
+      overrides.altura = Math.min(14, Math.max(3, state.rows - overrides.lin - 2));
+    }
+    if (type === "botao" || type === "btnConsultar") {
+      const safe = safeLinAbaixoDoGrid();
+      if (safe != null) overrides.lin = safe;
     }
     const item = createItem(type, overrides);
     if (type === "campo") item.text = `Campo ${item.id}`;
@@ -911,6 +948,13 @@
     const n = stretchLabelsToFields();
     render();
     showToast(n ? `${n} label(s) esticada(s) até o campo` : "Nenhuma label para ajustar");
+  });
+
+  document.getElementById("btnAdjustButtonsGrid").addEventListener("click", () => {
+    const n = adjustButtonsBelowGrid();
+    render();
+    const safe = safeLinAbaixoDoGrid();
+    showToast(n ? `${n} botão(ões) → linha ${safe}` : safe == null ? "Sem grid na tela" : `Já estão ≥ L${safe}`);
   });
 
   document.getElementById("btnCopyAll").addEventListener("click", async () => {

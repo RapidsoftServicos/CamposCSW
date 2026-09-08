@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CamposCSW — Layout visual CSW</title>
-  <link rel="stylesheet" href="css/styles.css?v=14" />
+  <link rel="stylesheet" href="css/styles.css?v=15" />
 </head>
 <body>
   <header class="topbar">
@@ -46,9 +46,9 @@
           <button type="button" class="palette-item" data-type="grid">Grid</button>
         </div>
         <p class="hint">Clique para adicionar. Arraste no canvas. Clique no item para Renomear / Copiar / Excluir.</p>
-        <p class="hint">Grid: bloco da área da tabela — arraste a borda inferior para altura. Coloque botões <strong>abaixo</strong> do grid.</p>
-        <p class="hint">Label: TAM = largura da caixa (texto à direita). Todas as labels da coluna devem ter o <strong>mesmo TAM</strong>, até perto do campo.</p>
+        <p class="hint">Grid: no Consistem a área real é Altura+2 (toolbar). Botão na linha do LinFim+2 some por baixo — use ≥ Faces+1.</p>
         <button type="button" id="btnStretchLabels" class="btn ghost" style="width:100%;margin-top:0.35rem">Esticar labels até o campo</button>
+        <button type="button" id="btnAdjustButtonsGrid" class="btn ghost" style="width:100%;margin-top:0.35rem">Ajustar botões abaixo do grid</button>
       </section>
 
       <section id="propsSection" class="hidden">
@@ -130,6 +130,6 @@
     <button type="button" data-action="delete" class="danger" role="menuitem">Excluir</button>
   </div>
 
-  <script src="js/app.js?v=14"></script>
+  <script src="js/app.js?v=15"></script>
 </body>
 </html>
