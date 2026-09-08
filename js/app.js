@@ -6,12 +6,10 @@
   const state = {
     cols: 80,
     rows: 17,
-    title: "Nova tela",
     layoutMode: "sem-tab",
-    tabName: "Configuração Geral",
-    tabId: "sheet1",
     items: [],
     selectedId: null,
+    menuItemUid: null,
     exportMode: "tags",
     nextSeq: 1,
   };
@@ -19,12 +17,7 @@
   const el = {
     ajCols: document.getElementById("ajCols"),
     ajRows: document.getElementById("ajRows"),
-    ajTitle: document.getElementById("ajTitle"),
-    tabOptions: document.getElementById("tabOptions"),
-    tabName: document.getElementById("tabName"),
-    tabId: document.getElementById("tabId"),
     tabBar: document.getElementById("tabBar"),
-    tabChip: document.getElementById("tabChip"),
     screenShell: document.getElementById("screenShell"),
     canvas: document.getElementById("canvas"),
     windowTitle: document.getElementById("windowTitle"),
@@ -45,6 +38,7 @@
     propTam: document.getElementById("propTam"),
     propExtra: document.getElementById("propExtra"),
     toast: document.getElementById("toast"),
+    itemMenu: document.getElementById("itemMenu"),
   };
 
   const defaultsByType = {
@@ -114,6 +108,10 @@
     return state.items.find((i) => i.uid === state.selectedId) || null;
   }
 
+  function getMenuItem() {
+    return state.items.find((i) => i.uid === state.menuItemUid) || null;
+  }
+
   function showToast(msg) {
     el.toast.textContent = msg;
     el.toast.classList.remove("hidden");
@@ -138,95 +136,117 @@
   }
 
   function buildSnippet(item) {
-    if (!item) return { text: "", hint: "" };
+    if (!item) return { text: "", hint: "", copyText: "" };
 
     if (item.type === "label") {
-      return {
-        text: `\t; csw:label:${fmt(item.col)},${item.lin},${fmt(item.tam)},${item.text}`,
-        hint: "Tag de label — igual ao final da .mac",
-      };
+      const text = `\t; csw:label:${fmt(item.col)},${item.lin},${fmt(item.tam)},${item.text}`;
+      return { text, hint: "Tag de label", copyText: text };
     }
 
     if (item.type === "display") {
-      return {
-        text: `\t; csw:display:${fmt(item.col)},${item.lin},${fmt(item.tam)},${item.id}`,
-        hint: "Tag de display — igual ao final da .mac",
-      };
+      const text = `\t; csw:display:${fmt(item.col)},${item.lin},${fmt(item.tam)},${item.id}`;
+      return { text, hint: "Tag de display", copyText: text };
     }
 
     if (item.type === "campo") {
       const n = item.labelNum || Number(String(item.id).replace(/\D/g, "")) || 1000;
       const v = (item.varName || "VAR").trim() || "VAR";
-      // Linha principal no formato de uso (copiável); bloco completo abaixo
       const csleLine = `do ^%CSLE(${item.lin},${fmt(item.col)},${fmt(item.tam)},"${v}",${v},,,,",,,${item.id}")`;
+      const copyText = `${n}ON\t${csleLine}`;
       const text = [
-        `${n}ON\t${csleLine}`,
+        copyText,
         `\tquit:$$CSP^%CSW1UTI()`,
         "",
-        `\t; csw:label / display relacionados usam as mesmas coordenadas de linha`,
         `\t; CSLE = LIN,COL,TAM → ${item.lin},${fmt(item.col)},${fmt(item.tam)}`,
+        `\t; Visual na tela: ${visualWidth(item)} colunas (TAM+2)`,
       ].join("\n");
-      return {
-        text,
-        hint: `Clique copia o CSLE · visual ${visualWidth(item)} colunas (TAM+2)`,
-        copyText: `${n}ON\t${csleLine}`,
-      };
+      return { text, hint: "Linha CSLE", copyText };
     }
 
     if (item.type === "botao") {
       const nome = item.text || "Acao";
-      const atalho = nome.charAt(0).toLowerCase();
-      return {
-        text: `\t; csw:botao:${fmt(item.col)},${item.lin},${item.id},<u>${nome.charAt(0)}</u>${nome.slice(1)},${atalho},3000^ROTINA,salvar,${nome},${fmt(item.tam)}`,
-        hint: "Tag de botão",
-      };
+      const text = `\t; csw:botao:${fmt(item.col)},${item.lin},${item.id},<u>${nome.charAt(0)}</u>${nome.slice(1)},${nome.charAt(0).toLowerCase()},3000^ROTINA,salvar,${nome},${fmt(item.tam)}`;
+      return { text, hint: "Tag de botão", copyText: text };
     }
 
     if (item.type === "btnConsultar") {
-      return {
-        text: `\t; csw:btnConsultar:${fmt(item.col)},${item.lin},2000^ROTINA,0500^ROTINA`,
-        hint: "Tag btnConsultar",
-      };
+      const text = `\t; csw:btnConsultar:${fmt(item.col)},${item.lin},2000^ROTINA,0500^ROTINA`;
+      return { text, hint: "Tag btnConsultar", copyText: text };
     }
 
-    return { text: "", hint: "" };
+    return { text: "", hint: "", copyText: "" };
   }
 
-  async function showAndCopySnippet(item, { copy = true } = {}) {
+  function updateSnippetPanel(item) {
     if (!item) {
       el.snippetOut.value = "";
-      el.snippetHint.textContent = "";
+      el.snippetHint.textContent = "Clique no item → Copiar ou Excluir.";
       return;
     }
     const snip = buildSnippet(item);
     el.snippetOut.value = snip.text;
     el.snippetHint.textContent = snip.hint;
-    if (copy) {
-      const payload = snip.copyText || snip.text;
-      const ok = await copyText(payload);
-      if (ok) showToast(item.type === "campo" ? "CSLE copiado!" : "Tag copiada!");
-    }
+  }
+
+  function hideItemMenu() {
+    state.menuItemUid = null;
+    el.itemMenu.classList.add("hidden");
+  }
+
+  function showItemMenu(item, clientX, clientY) {
+    state.menuItemUid = item.uid;
+    state.selectedId = item.uid;
+    updateSnippetPanel(item);
+    renderProps();
+
+    el.itemMenu.classList.remove("hidden");
+    const pad = 8;
+    const mw = el.itemMenu.offsetWidth || 140;
+    const mh = el.itemMenu.offsetHeight || 80;
+    let left = clientX + 4;
+    let top = clientY + 4;
+    if (left + mw > window.innerWidth - pad) left = clientX - mw - 4;
+    if (top + mh > window.innerHeight - pad) top = clientY - mh - 4;
+    el.itemMenu.style.left = `${Math.max(pad, left)}px`;
+    el.itemMenu.style.top = `${Math.max(pad, top)}px`;
+  }
+
+  async function copySelectedItem() {
+    const item = getMenuItem() || getSelected();
+    if (!item) return;
+    const snip = buildSnippet(item);
+    updateSnippetPanel(item);
+    const ok = await copyText(snip.copyText || snip.text);
+    if (ok) showToast(item.type === "campo" ? "CSLE copiado!" : "Tag copiada!");
+    hideItemMenu();
+  }
+
+  function deleteSelectedItem() {
+    const item = getMenuItem() || getSelected();
+    if (!item) return;
+    state.items = state.items.filter((i) => i.uid !== item.uid);
+    state.selectedId = null;
+    hideItemMenu();
+    showToast("Item excluído");
+    render();
   }
 
   function setLayoutMode(mode) {
     state.layoutMode = mode;
     const comTab = mode === "com-tab";
-    el.tabOptions.classList.toggle("hidden", !comTab);
     el.tabBar.classList.toggle("hidden", !comTab);
     el.screenShell.classList.toggle("mode-com-tab", comTab);
     el.screenShell.classList.toggle("mode-sem-tab", !comTab);
     el.modeBadge.textContent = comTab ? "Com Tab" : "Sem Tab";
-    el.tabChip.textContent = state.tabName;
     render();
   }
 
   function syncAj() {
     state.cols = clamp(Number(el.ajCols.value) || 80, 20, 108);
     state.rows = clamp(Number(el.ajRows.value) || 17, 5, 28);
-    state.title = el.ajTitle.value || "Nova tela";
     el.ajCols.value = state.cols;
     el.ajRows.value = state.rows;
-    el.windowTitle.textContent = state.title;
+    el.windowTitle.textContent = `AJ ${state.cols} × ${state.rows}`;
     el.ajBadge.textContent = `${state.cols} × ${state.rows}`;
     el.canvas.style.width = `${state.cols * CELL_W}px`;
     el.canvas.style.height = `${state.rows * CELL_H}px`;
@@ -235,7 +255,7 @@
   function validate() {
     const msgs = [];
     if (state.layoutMode === "com-tab") {
-      msgs.push(`Modo Com Tab: coords relativas à aba "${state.tabName}" (${state.tabId})`);
+      msgs.push("Modo Com Tab: coordenadas relativas à aba");
     }
     for (const item of state.items) {
       const w = visualWidth(item);
@@ -286,11 +306,7 @@
   function renderProps() {
     const item = getSelected();
     el.propsSection.classList.toggle("hidden", !item);
-    if (!item) {
-      el.snippetOut.value = "";
-      el.snippetHint.textContent = "Clique em um item no canvas para copiar.";
-      return;
-    }
+    if (!item) return;
     el.propId.value = item.id;
     el.propText.value = item.text || "";
     el.propVarRow.classList.toggle("hidden", item.type !== "campo");
@@ -303,20 +319,13 @@
     } else {
       el.propExtra.textContent = `col,lin,tam → ${item.col},${item.lin},${item.tam}`;
     }
-    const snip = buildSnippet(item);
-    el.snippetOut.value = snip.text;
-    el.snippetHint.textContent = `${snip.hint} · Clique no item para copiar.`;
   }
 
   function exportTags() {
     const lines = [];
-    lines.push(`; csw:aj:${state.cols},${state.rows},${state.title}`);
-    if (state.layoutMode === "com-tab") {
-      lines.push(`; modo:com-tab; tabId=${state.tabId}; tabName=${state.tabName}`);
-      lines.push(`; csw:labelseltab:0500`);
-    } else {
-      lines.push(`; modo:sem-tab`);
-    }
+    lines.push(`; csw:aj:${state.cols},${state.rows}`);
+    lines.push(state.layoutMode === "com-tab" ? "; modo:com-tab" : "; modo:sem-tab");
+    if (state.layoutMode === "com-tab") lines.push("; csw:labelseltab:0500");
     lines.push("");
     state.items
       .filter((i) => i.type === "label")
@@ -367,6 +376,7 @@
     el.canvas.innerHTML = "";
     state.items.forEach((item) => el.canvas.appendChild(renderItem(item)));
     renderProps();
+    updateSnippetPanel(getSelected());
     renderExport();
     validate();
   }
@@ -374,6 +384,7 @@
   function onItemMouseDown(ev, item, handle) {
     ev.preventDefault();
     ev.stopPropagation();
+    hideItemMenu();
     state.selectedId = item.uid;
     render();
 
@@ -388,7 +399,7 @@
     function onMove(e) {
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
-      if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
+      if (Math.abs(dx) + Math.abs(dy) > 4) moved = true;
       if (resizing) {
         item.tam = clamp(snapCol(startTam + dx / CELL_W), 1, state.cols);
       } else {
@@ -398,13 +409,21 @@
       render();
     }
 
-    function onUp() {
+    function onUp(e) {
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
-      // Clique simples (sem arrastar) → copia snippet
-      // Também copia ao soltar após mover, para pegar a posição final
-      showAndCopySnippet(item, { copy: true });
-      if (moved) render();
+      if (!moved) {
+        // Clique simples → menu Copiar / Excluir
+        showItemMenu(item, e.clientX, e.clientY);
+        // Destaca item no canvas
+        state.selectedId = item.uid;
+        const nodes = el.canvas.querySelectorAll(".item");
+        nodes.forEach((n) => n.classList.toggle("selected", n.dataset.uid === item.uid));
+        renderProps();
+        updateSnippetPanel(item);
+      } else {
+        updateSnippetPanel(item);
+      }
     }
 
     document.addEventListener("mousemove", onMove);
@@ -412,6 +431,7 @@
   }
 
   function addFromPalette(type) {
+    hideItemMenu();
     const item = createItem(type, {
       col: 1,
       lin: Math.min(state.rows, state.items.length + 1),
@@ -421,7 +441,6 @@
     state.items.push(item);
     state.selectedId = item.uid;
     render();
-    showAndCopySnippet(item, { copy: true });
   }
 
   function applyPropsFromForm() {
@@ -434,35 +453,26 @@
     item.lin = Math.round(clamp(Number(el.propLin.value) || 1, 1, state.rows));
     item.tam = snapCol(clamp(Number(el.propTam.value) || 1, 1, state.cols));
     render();
-    showAndCopySnippet(item, { copy: false });
   }
 
   function parseImport(text) {
     const items = [];
     let cols = state.cols;
     let rows = state.rows;
-    let title = state.title;
     let mode = state.layoutMode;
-    let tabName = state.tabName;
-    let tabId = state.tabId;
 
     text.split(/\r?\n/).forEach((raw) => {
       const line = raw.trim();
       if (!line) return;
 
-      let m = line.match(/csw:aj:([^,]+),([^,]+),(.+)$/i);
+      let m = line.match(/csw:aj:([^,]+),([^,\s;]+)/i);
       if (m) {
         cols = Number(m[1]);
         rows = Number(m[2]);
-        title = m[3].trim();
         return;
       }
       if (/modo:com-tab/i.test(line)) {
         mode = "com-tab";
-        const id = line.match(/tabId=([^;]+)/i);
-        const name = line.match(/tabName=([^;]+)/i);
-        if (id) tabId = id[1].trim();
-        if (name) tabName = name[1].trim();
         return;
       }
       if (/modo:sem-tab/i.test(line)) {
@@ -479,8 +489,7 @@
         items.push(createItem("display", { col: Number(m[1]), lin: Number(m[2]), tam: Number(m[3]), id: m[4].trim() }));
         return;
       }
-      m = line.match(/csw:botao:/i);
-      if (m) {
+      if (/csw:botao:/i.test(line)) {
         const body = line.replace(/^;?\s*csw:botao:/i, "");
         const p = body.split(",");
         items.push(createItem("botao", {
@@ -496,17 +505,13 @@
       if (m) items.push(createItem("btnConsultar", { col: Number(m[1]), lin: Number(m[2]), tam: 12 }));
     });
 
-    return { items, cols, rows, title, mode, tabName, tabId };
+    return { items, cols, rows, mode };
   }
 
   function loadExampleTab() {
+    hideItemMenu();
     el.ajCols.value = 80;
     el.ajRows.value = 17;
-    el.ajTitle.value = "Naturezas a Descontar do Saldo de Estoque na Análise de Materiais";
-    el.tabName.value = "Configuração Geral";
-    el.tabId.value = "sheet1";
-    state.tabName = el.tabName.value;
-    state.tabId = el.tabId.value;
     document.querySelector('input[name="layoutMode"][value="com-tab"]').checked = true;
     setLayoutMode("com-tab");
     state.items = [
@@ -518,15 +523,14 @@
       createItem("botao", { col: 1, lin: 15, tam: 15, id: "btSalvar", text: "Salvar" }),
       createItem("botao", { col: 16.5, lin: 15, tam: 15, id: "btCancelar", text: "Cancelar" }),
     ];
-    state.selectedId = state.items[0].uid;
+    state.selectedId = null;
     render();
-    showAndCopySnippet(state.items[0], { copy: true });
   }
 
   function loadExampleNoTab() {
+    hideItemMenu();
     el.ajCols.value = 70;
     el.ajRows.value = 26;
-    el.ajTitle.value = "Consulta de Eficiência Detalhada por Movimentação da OP";
     document.querySelector('input[name="layoutMode"][value="sem-tab"]').checked = true;
     setLayoutMode("sem-tab");
     state.items = [
@@ -542,33 +546,16 @@
       createItem("campo", { col: 16, lin: 4, tam: 8, id: "cp1300", labelNum: 1300, varName: "DATFIM" }),
       createItem("btnConsultar", { col: 50, lin: 2, tam: 12 }),
     ];
-    state.selectedId = state.items[0].uid;
+    state.selectedId = null;
     render();
-    showAndCopySnippet(state.items[0], { copy: true });
   }
 
-  ["ajCols", "ajRows", "ajTitle"].forEach((k) => {
+  ["ajCols", "ajRows"].forEach((k) => {
     el[k].addEventListener("change", render);
-    el[k].addEventListener("input", () => {
-      if (k === "ajTitle") {
-        state.title = el.ajTitle.value;
-        el.windowTitle.textContent = state.title;
-      }
-    });
   });
 
   document.querySelectorAll('input[name="layoutMode"]').forEach((radio) => {
     radio.addEventListener("change", () => setLayoutMode(radio.value));
-  });
-
-  el.tabName.addEventListener("input", () => {
-    state.tabName = el.tabName.value || "Aba";
-    el.tabChip.textContent = state.tabName;
-    renderExport();
-  });
-  el.tabId.addEventListener("input", () => {
-    state.tabId = el.tabId.value || "sheet1";
-    renderExport();
   });
 
   document.querySelectorAll(".palette-item").forEach((btn) => {
@@ -588,18 +575,22 @@
     if (el[id]) el[id].addEventListener("change", applyPropsFromForm);
   });
 
-  document.getElementById("btnCopyItem").addEventListener("click", () => {
-    const item = getSelected();
-    if (item) showAndCopySnippet(item, { copy: true });
+  el.itemMenu.addEventListener("click", (ev) => {
+    const btn = ev.target.closest("button[data-action]");
+    if (!btn) return;
+    ev.stopPropagation();
+    if (btn.dataset.action === "copy") copySelectedItem();
+    if (btn.dataset.action === "delete") deleteSelectedItem();
   });
 
-  document.getElementById("btnDelete").addEventListener("click", () => {
-    state.items = state.items.filter((i) => i.uid !== state.selectedId);
-    state.selectedId = null;
-    render();
+  document.addEventListener("mousedown", (ev) => {
+    if (!el.itemMenu.classList.contains("hidden") && !el.itemMenu.contains(ev.target)) {
+      hideItemMenu();
+    }
   });
 
   document.getElementById("btnClear").addEventListener("click", () => {
+    hideItemMenu();
     state.items = [];
     state.selectedId = null;
     render();
@@ -611,18 +602,14 @@
   });
 
   document.getElementById("btnApplyImport").addEventListener("click", () => {
+    hideItemMenu();
     const parsed = parseImport(el.importIn.value);
     el.ajCols.value = parsed.cols;
     el.ajRows.value = parsed.rows;
-    el.ajTitle.value = parsed.title;
-    el.tabName.value = parsed.tabName;
-    el.tabId.value = parsed.tabId;
-    state.tabName = parsed.tabName;
-    state.tabId = parsed.tabId;
     document.querySelector(`input[name="layoutMode"][value="${parsed.mode}"]`).checked = true;
     setLayoutMode(parsed.mode);
     state.items = parsed.items;
-    state.selectedId = state.items[0]?.uid || null;
+    state.selectedId = null;
     render();
   });
 
@@ -630,6 +617,7 @@
   document.getElementById("btnExampleNoTab").addEventListener("click", loadExampleNoTab);
 
   el.canvas.addEventListener("mousedown", () => {
+    hideItemMenu();
     state.selectedId = null;
     render();
   });

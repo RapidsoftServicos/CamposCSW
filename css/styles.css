@@ -76,6 +76,41 @@ button, input, textarea { font: inherit; color: inherit; }
   border-color: #334155;
 }
 
+.item-menu {
+  position: fixed;
+  z-index: 100;
+  min-width: 140px;
+  padding: 0.3rem;
+  background: #fff;
+  border: 1px solid #9aa8b8;
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(20, 30, 45, 0.22);
+  display: grid;
+  gap: 0.2rem;
+}
+
+.item-menu button {
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 0.55rem 0.7rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.item-menu button:hover {
+  background: #e8f1f8;
+}
+
+.item-menu button.danger {
+  color: #a33b3b;
+}
+
+.item-menu button.danger:hover {
+  background: #f8e8e8;
+}
+
 .btn {
   border: 1px solid var(--line);
   background: var(--surface);
