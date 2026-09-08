@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CamposCSW — Layout visual CSW</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <strong>CamposCSW</strong>
+      <span>Editor visual de labels, campos e displays</span>
+    </div>
+    <div class="top-actions">
+      <button type="button" id="btnExampleTab" class="btn ghost">Exemplo com Tab</button>
+      <button type="button" id="btnExampleNoTab" class="btn ghost">Exemplo sem Tab</button>
+      <button type="button" id="btnClear" class="btn ghost danger">Limpar</button>
+      <button type="button" id="btnCopyAll" class="btn ghost">Copiar export completo</button>
+    </div>
+    <div id="toast" class="toast hidden" role="status" aria-live="polite">Copiado!</div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel left">
+      <section>
+        <h2>Tela (AJ)</h2>
+        <div class="form-row">
+          <label for="ajCols">Colunas</label>
+          <input id="ajCols" type="number" min="20" max="108" value="80" />
+        </div>
+        <div class="form-row">
+          <label for="ajRows">Linhas</label>
+          <input id="ajRows" type="number" min="5" max="28" value="17" />
+        </div>
+        <div class="form-row">
+          <label for="ajTitle">Título</label>
+          <input id="ajTitle" type="text" value="Nova tela" />
+        </div>
+        <p class="hint">Limite oficial: 108 × 28. Antigo: 84 × 22.</p>
+      </section>
+
+      <section>
+        <h2>Modo de layout</h2>
+        <div class="mode-toggle" role="group" aria-label="Modo de layout">
+          <label class="mode-option">
+            <input type="radio" name="layoutMode" value="sem-tab" checked />
+            <span>
+              <strong>Sem Tab</strong>
+              <small>Campos na tela principal (ex.: consulta)</small>
+            </span>
+          </label>
+          <label class="mode-option">
+            <input type="radio" name="layoutMode" value="com-tab" />
+            <span>
+              <strong>Com Tab</strong>
+              <small>Campos dentro da aba (ex.: configuração)</small>
+            </span>
+          </label>
+        </div>
+        <div id="tabOptions" class="tab-options hidden">
+          <div class="form-row">
+            <label for="tabName">Nome aba</label>
+            <input id="tabName" type="text" value="Configuração Geral" />
+          </div>
+          <div class="form-row">
+            <label for="tabId">ID aba</label>
+            <input id="tabId" type="text" value="sheet1" />
+          </div>
+          <p class="hint">Linhas do canvas passam a ser relativas à área da aba (começam em 1).</p>
+        </div>
+      </section>
+
+      <section>
+        <h2>Paleta</h2>
+        <div class="palette">
+          <button type="button" class="palette-item" data-type="label">Label</button>
+          <button type="button" class="palette-item" data-type="campo">Campo (CSLE)</button>
+          <button type="button" class="palette-item" data-type="display">Display</button>
+          <button type="button" class="palette-item" data-type="botao">Botão</button>
+          <button type="button" class="palette-item" data-type="btnConsultar">BtnConsultar</button>
+        </div>
+        <p class="hint">Clique para adicionar. Arraste no canvas. Redimensione pela borda direita.</p>
+        <p class="hint">CSLE ocupa TAM + 2 colunas na tela (colchetes [ ]).</p>
+      </section>
+
+      <section id="propsSection" class="hidden">
+        <h2>Propriedades</h2>
+        <div class="form-row">
+          <label for="propId">ID</label>
+          <input id="propId" type="text" />
+        </div>
+        <div class="form-row">
+          <label for="propText">Texto</label>
+          <input id="propText" type="text" />
+        </div>
+        <div id="propVarRow" class="form-row hidden">
+          <label for="propVar">Variável</label>
+          <input id="propVar" type="text" placeholder="CDCE" />
+        </div>
+        <div class="form-row">
+          <label for="propCol">Coluna</label>
+          <input id="propCol" type="number" step="0.5" min="1" />
+        </div>
+        <div class="form-row">
+          <label for="propLin">Linha</label>
+          <input id="propLin" type="number" step="1" min="1" />
+        </div>
+        <div class="form-row">
+          <label for="propTam">Tamanho</label>
+          <input id="propTam" type="number" step="0.5" min="1" />
+        </div>
+        <p id="propExtra" class="hint"></p>
+        <button type="button" id="btnCopyItem" class="btn primary full">Copiar snippet do item</button>
+        <button type="button" id="btnDelete" class="btn danger full">Excluir selecionado</button>
+      </section>
+    </aside>
+
+    <section class="canvas-wrap">
+      <div class="window-chrome">
+        <div class="window-title" id="windowTitle">Nova tela</div>
+        <div class="window-meta">AJ <span id="ajBadge">80 × 17</span> · <span id="modeBadge">Sem Tab</span></div>
+      </div>
+      <div class="canvas-scroll">
+        <div id="screenShell" class="screen-shell mode-sem-tab">
+          <div id="tabBar" class="tab-bar hidden">
+            <div class="tab-chip active" id="tabChip">Configuração Geral</div>
+          </div>
+          <div id="canvas" class="canvas" aria-label="Canvas da tela CSW"></div>
+        </div>
+      </div>
+      <div id="warnings" class="warnings"></div>
+    </section>
+
+    <aside class="panel right">
+      <section>
+        <h2>Snippet do item</h2>
+        <p class="hint">Clique em um item no canvas para mostrar e copiar automaticamente.</p>
+        <textarea id="snippetOut" readonly spellcheck="false" placeholder="Selecione um label, campo ou display..."></textarea>
+        <p id="snippetHint" class="hint"></p>
+      </section>
+      <section>
+        <h2>Export completo</h2>
+        <div class="export-tabs">
+          <button type="button" class="tab active" data-export="tags">Tags CSW</button>
+          <button type="button" class="tab" data-export="csle">CSLE / coords</button>
+          <button type="button" class="tab" data-export="all">Tudo</button>
+        </div>
+        <textarea id="exportOut" readonly spellcheck="false"></textarea>
+      </section>
+      <section>
+        <h2>Importar</h2>
+        <textarea id="importIn" placeholder="; csw:aj:80,17,Titulo&#10;; csw:label:1,1,15,Empresas&#10;; csw:display:21,1,10,ds1000" spellcheck="false"></textarea>
+        <button type="button" id="btnApplyImport" class="btn primary full">Aplicar no canvas</button>
+      </section>
+    </aside>
+  </main>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
