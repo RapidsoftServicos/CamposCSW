@@ -498,37 +498,27 @@
     render();
   }
 
-  // CSLE: só precisa de LIN,COL,TAM — lê até a 3ª vírgula após %CSLE(
-  // Ex.: do ^%CSLE(1,16,4, ....qualquer coisa...)
+  // CSLE: lê só LIN,COL,TAM (até a 3ª vírgula). Resto da linha é ignorado.
+  // Ex.: 1000ON do ^%CSLE(1,16,4, ....)
   function parseCsleLine(line, labelHint) {
-    const start = line.search(/\^%CSLE\s*\(/i);
-    if (start < 0) return null;
+    const m = String(line).match(/%CSLE\s*\(\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)/i);
+    if (!m) return null;
 
-    const open = line.indexOf("(", start);
-    if (open < 0) return null;
-
-    const after = line.slice(open + 1);
-    const parts = after.split(",");
-    if (parts.length < 3) return null;
-
-    const lin = Number(String(parts[0]).trim());
-    const col = Number(String(parts[1]).trim());
-    const tam = Number(String(parts[2]).trim());
+    const lin = Number(String(m[1]).trim());
+    const col = Number(String(m[2]).trim());
+    const tam = Number(String(m[3]).trim());
     if (Number.isNaN(lin) || Number.isNaN(col) || Number.isNaN(tam)) return null;
 
-    const onMatch = line.match(/^(\d+)ON\b/i);
-    const cpMatch = line.match(/\b(cp\d+)\b/i);
+    const onMatch = String(line).match(/(\d+)ON\b/i);
+    const cpMatch = String(line).match(/\b(cp\d+)\b/i);
     const cpId = cpMatch ? cpMatch[1] : "";
     const labelNum = onMatch
       ? Number(onMatch[1])
-      : (cpId ? Number(String(cpId).replace(/\D/g, "")) : null);
+      : (cpId ? Number(String(cpId).replace(/\D/g, "")) || null : null);
 
-    // Variável (4º parâmetro), se for simples tipo "CDCE" / CDCE
     let varName = "VAR";
-    if (parts[3] !== undefined) {
-      const v = String(parts[3]).trim().replace(/^"|"$/g, "");
-      if (v && !/^\$piece\(/i.test(v) && !/[(),]/.test(v)) varName = v;
-    }
+    const varMatch = String(line).match(/%CSLE\s*\(\s*[^,]+,\s*[^,]+,\s*[^,]+,\s*"?([A-Za-z%][A-Za-z0-9%]*)"?\s*,/i);
+    if (varMatch && !/^\$piece$/i.test(varMatch[1])) varName = varMatch[1];
 
     return createItem("campo", {
       col,
@@ -723,7 +713,9 @@
 
   document.getElementById("btnApplyImport").addEventListener("click", () => {
     hideItemMenu();
-    const parsed = parseImport(el.importIn.value);
+    const raw = el.importIn.value;
+    const parsed = parseImport(raw);
+    const hasCsleText = /%CSLE\s*\(/i.test(raw);
     if (!parsed.items.length) {
       showToast("Nada para importar (tags csw ou %CSLE)");
       return;
@@ -731,14 +723,17 @@
     el.ajCols.value = parsed.cols;
     el.ajRows.value = parsed.rows;
     document.querySelector(`input[name="layoutMode"][value="${parsed.mode}"]`).checked = true;
-    setLayoutMode(parsed.mode);
     state.items = parsed.items;
     state.selectedId = null;
-    render();
+    setLayoutMode(parsed.mode);
     const parts = [];
-    if (parsed.csleCount) parts.push(`${parsed.csleCount} CSLE`);
+    if (parsed.csleCount) parts.push(`${parsed.csleCount} campo(s) CSLE`);
     if (parsed.tagCount) parts.push(`${parsed.tagCount} tag(s)`);
-    showToast(`Importado: ${parts.join(" + ") || parsed.items.length + " item(ns)"}`);
+    if (hasCsleText && !parsed.csleCount) {
+      showToast("Tags ok, mas %CSLE não foi lido — confira a linha");
+    } else {
+      showToast(`Importado: ${parts.join(" + ")}`);
+    }
   });
 
   document.getElementById("btnExampleTab").addEventListener("click", loadExampleTab);
