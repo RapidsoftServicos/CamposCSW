@@ -278,6 +278,15 @@
     el.warnings.textContent = msgs.join(" · ");
   }
 
+  function maxTamFor(item) {
+    const extra = item.type === "campo" ? 2 : 0;
+    return Math.max(1, snapCol(state.cols - item.col + 1 - extra));
+  }
+
+  function setItemTam(item, nextTam) {
+    item.tam = clamp(snapCol(nextTam), 1, maxTamFor(item));
+  }
+
   function renderItem(item) {
     const node = document.createElement("div");
     node.className = `item ${item.type}${item.uid === state.selectedId ? " selected" : ""}`;
@@ -288,18 +297,22 @@
     node.style.height = `${CELL_H - 4}px`;
     node.style.marginTop = "2px";
 
+    const labelEl = document.createElement("span");
+    labelEl.className = "item-label";
     let label = item.id;
     if (item.type === "label") label = item.text || item.id;
-    if (item.type === "campo") label = `[${item.id}]`;
-    if (item.type === "display") label = item.text || item.id;
+    if (item.type === "campo") label = `[${item.id} · tam ${fmt(item.tam)}]`;
+    if (item.type === "display") label = `${item.text || item.id} · ${fmt(item.tam)}`;
     if (item.type === "botao") label = item.text || item.id;
     if (item.type === "btnConsultar") label = "Consultar / Limpar";
-    node.textContent = label;
+    labelEl.textContent = label;
+    node.appendChild(labelEl);
 
     const handle = document.createElement("div");
     handle.className = "resize-handle";
+    handle.title = "Arraste para alterar o tamanho (horizontal)";
     node.appendChild(handle);
-    node.addEventListener("mousedown", (ev) => onItemMouseDown(ev, item, handle));
+    node.addEventListener("mousedown", (ev) => onItemMouseDown(ev, item));
     return node;
   }
 
@@ -315,9 +328,9 @@
     el.propLin.value = item.lin;
     el.propTam.value = item.tam;
     if (item.type === "campo") {
-      el.propExtra.textContent = `Visual: ${visualWidth(item)} colunas (TAM ${item.tam} + 2)`;
+      el.propExtra.textContent = `Visual: ${visualWidth(item)} colunas (TAM ${item.tam} + 2). Máx. TAM: ${maxTamFor(item)}`;
     } else {
-      el.propExtra.textContent = `col,lin,tam → ${item.col},${item.lin},${item.tam}`;
+      el.propExtra.textContent = `col,lin,tam → ${item.col},${item.lin},${item.tam} · Máx. TAM: ${maxTamFor(item)}`;
     }
   }
 
@@ -381,14 +394,22 @@
     validate();
   }
 
-  function onItemMouseDown(ev, item, handle) {
+  function onItemMouseDown(ev, item) {
     ev.preventDefault();
     ev.stopPropagation();
     hideItemMenu();
-    state.selectedId = item.uid;
-    render();
 
-    const resizing = ev.target === handle;
+    const resizing = !!ev.target.closest(".resize-handle");
+    state.selectedId = item.uid;
+
+    // Atualiza seleção sem recriar o nó no meio do clique
+    el.canvas.querySelectorAll(".item").forEach((n) => {
+      n.classList.toggle("selected", n.dataset.uid === item.uid);
+      n.classList.toggle("resizing", resizing && n.dataset.uid === item.uid);
+    });
+    renderProps();
+    updateSnippetPanel(item);
+
     const startX = ev.clientX;
     const startY = ev.clientY;
     const startCol = item.col;
@@ -399,26 +420,32 @@
     function onMove(e) {
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
-      if (Math.abs(dx) + Math.abs(dy) > 4) moved = true;
+      if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
       if (resizing) {
-        item.tam = clamp(snapCol(startTam + dx / CELL_W), 1, state.cols);
+        setItemTam(item, startTam + dx / CELL_W);
       } else {
         item.col = snapCol(clamp(startCol + dx / CELL_W, 1, state.cols));
         item.lin = Math.round(clamp(startLin + dy / CELL_H, 1, state.rows));
+        // Ao mover, garante que o tamanho ainda cabe
+        setItemTam(item, item.tam);
       }
       render();
+      if (resizing) {
+        const node = el.canvas.querySelector(`.item[data-uid="${item.uid}"]`);
+        if (node) node.classList.add("resizing");
+      }
     }
 
     function onUp(e) {
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
-      if (!moved) {
-        // Clique simples → menu Copiar / Excluir
+      render();
+      if (!moved && !resizing) {
         showItemMenu(item, e.clientX, e.clientY);
-        // Destaca item no canvas
         state.selectedId = item.uid;
-        const nodes = el.canvas.querySelectorAll(".item");
-        nodes.forEach((n) => n.classList.toggle("selected", n.dataset.uid === item.uid));
+        el.canvas.querySelectorAll(".item").forEach((n) => {
+          n.classList.toggle("selected", n.dataset.uid === item.uid);
+        });
         renderProps();
         updateSnippetPanel(item);
       } else {
@@ -451,7 +478,14 @@
     if (item.type === "campo") item.varName = el.propVar.value.trim() || "VAR";
     item.col = snapCol(clamp(Number(el.propCol.value) || 1, 1, state.cols));
     item.lin = Math.round(clamp(Number(el.propLin.value) || 1, 1, state.rows));
-    item.tam = snapCol(clamp(Number(el.propTam.value) || 1, 1, state.cols));
+    setItemTam(item, Number(el.propTam.value) || 1);
+    render();
+  }
+
+  function bumpTam(delta) {
+    const item = getSelected();
+    if (!item) return;
+    setItemTam(item, Number(item.tam) + delta);
     render();
   }
 
@@ -572,8 +606,14 @@
   });
 
   ["propId", "propText", "propVar", "propCol", "propLin", "propTam"].forEach((id) => {
-    if (el[id]) el[id].addEventListener("change", applyPropsFromForm);
+    if (el[id]) {
+      el[id].addEventListener("change", applyPropsFromForm);
+      if (id === "propTam") el[id].addEventListener("input", applyPropsFromForm);
+    }
   });
+
+  document.getElementById("btnTamMinus").addEventListener("click", () => bumpTam(-1));
+  document.getElementById("btnTamPlus").addEventListener("click", () => bumpTam(1));
 
   el.itemMenu.addEventListener("click", (ev) => {
     const btn = ev.target.closest("button[data-action]");

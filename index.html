@@ -94,8 +94,13 @@
         </div>
         <div class="form-row">
           <label for="propTam">Tamanho</label>
-          <input id="propTam" type="number" step="0.5" min="1" />
+          <div class="tam-controls">
+            <button type="button" id="btnTamMinus" class="btn tam-btn" title="Diminuir">−</button>
+            <input id="propTam" type="number" step="0.5" min="1" />
+            <button type="button" id="btnTamPlus" class="btn tam-btn" title="Aumentar">+</button>
+          </div>
         </div>
+        <p class="hint">Arraste a borda direita do item no canvas para alongar (campo/display).</p>
         <p id="propExtra" class="hint"></p>
       </section>
     </aside>
