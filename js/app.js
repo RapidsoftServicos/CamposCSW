@@ -1,7 +1,8 @@
 (() => {
-  // Grade aproximada do Consistem Faces (~9×20 px)
-  const CELL_W = 9;
-  const CELL_H = 20;
+  // Proporção Faces Consistem (~9×20). Escala só visual do editor (coordenadas iguais).
+  const CELL_SCALE = 1.75;
+  const CELL_W = 9 * CELL_SCALE; // ~15.75 px
+  const CELL_H = 20 * CELL_SCALE; // 35 px
   const HALF = 0.5;
   const DEFAULT_COLS = 80;
   const DEFAULT_ROWS = 17;
@@ -284,6 +285,8 @@
     el.ajBadge.textContent = `${state.cols} × ${state.rows}`;
     el.canvas.style.width = `${state.cols * CELL_W}px`;
     el.canvas.style.height = `${state.rows * CELL_H}px`;
+    el.canvas.style.setProperty("--cell-w", `${CELL_W}px`);
+    el.canvas.style.setProperty("--cell-h", `${CELL_H}px`);
   }
 
   function applyDefaultAj() {
