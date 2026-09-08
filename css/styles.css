@@ -362,6 +362,26 @@ button, input, textarea { font: inherit; color: inherit; }
 .item.botao,
 .item.btnConsultar { background: var(--botao); justify-content: center; font-weight: 600; }
 .item.multiselect { background: #eef6ff; font-family: var(--mono); }
+.item.grid {
+  background: repeating-linear-gradient(
+    0deg,
+    #e8eef5,
+    #e8eef5 34px,
+    #dce5ef 34px,
+    #dce5ef 35px
+  );
+  color: #1f3a56;
+  border: 1px dashed #5b7a99;
+  align-items: flex-start;
+  padding: 8px 10px;
+  z-index: 1;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.item.grid .item-label {
+  text-align: left;
+}
 
 .item .resize-handle {
   position: absolute;
@@ -372,6 +392,17 @@ button, input, textarea { font: inherit; color: inherit; }
   cursor: ew-resize;
   background: linear-gradient(90deg, transparent 40%, rgba(31, 95, 139, 0.35) 40%, rgba(31, 95, 139, 0.35) 60%, transparent 60%);
   border-radius: 0 2px 2px 0;
+  z-index: 2;
+}
+
+.item .resize-handle-v {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 10px;
+  cursor: ns-resize;
+  background: linear-gradient(to bottom, transparent, rgba(31, 95, 139, 0.25));
   z-index: 2;
 }
 

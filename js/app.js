@@ -10,7 +10,6 @@
   const state = {
     cols: DEFAULT_COLS,
     rows: DEFAULT_ROWS,
-    layoutMode: "sem-tab",
     items: [],
     selectedId: null,
     menuItemUid: null,
@@ -21,12 +20,10 @@
   const el = {
     ajCols: document.getElementById("ajCols"),
     ajRows: document.getElementById("ajRows"),
-    tabBar: document.getElementById("tabBar"),
     screenShell: document.getElementById("screenShell"),
     canvas: document.getElementById("canvas"),
     windowTitle: document.getElementById("windowTitle"),
     ajBadge: document.getElementById("ajBadge"),
-    modeBadge: document.getElementById("modeBadge"),
     warnings: document.getElementById("warnings"),
     exportOut: document.getElementById("exportOut"),
     snippetOut: document.getElementById("snippetOut"),
@@ -37,8 +34,12 @@
     propText: document.getElementById("propText"),
     propVarRow: document.getElementById("propVarRow"),
     propVar: document.getElementById("propVar"),
+    propColRow: document.getElementById("propColRow"),
+    propColLabel: document.getElementById("propColLabel"),
     propCol: document.getElementById("propCol"),
+    propLinLabel: document.getElementById("propLinLabel"),
     propLin: document.getElementById("propLin"),
+    propTamLabel: document.getElementById("propTamLabel"),
     propTam: document.getElementById("propTam"),
     propExtra: document.getElementById("propExtra"),
     toast: document.getElementById("toast"),
@@ -52,6 +53,7 @@
     botao: { text: "Salvar", tam: 15, idPrefix: "bt" },
     btnConsultar: { text: "Consultar/Limpar", tam: 12, idPrefix: "btnConsultar" },
     multiselect: { text: "Multiselect", tam: 12, idPrefix: "cp" },
+    grid: { text: "Grid", tam: 80, idPrefix: "grid", altura: 14 },
   };
 
   function snapCol(v) {
@@ -63,12 +65,30 @@
   }
 
   function visualWidth(item) {
-    // No canvas usamos o TAM declarado.
-    // (Na tela real o CSLE ocupa ~TAM+2 pelos [ ], mas o display costuma ir em COL+TAM+1.)
+    if (item.type === "grid") return state.cols;
     return Number(item.tam);
   }
 
+  function visualHeight(item) {
+    if (item.type === "grid") return Math.max(1, Number(item.altura) || 1);
+    return 1;
+  }
+
+  function gridLinFim(item) {
+    return item.lin + visualHeight(item) - 1;
+  }
+
+  function gridConfLine(item) {
+    const cod = item.cod || 1;
+    const linPos = item.lin;
+    const altura = visualHeight(item);
+    const linIni = linPos;
+    const linFim = gridLinFim(item);
+    return `set TABGRID(${cod})="; csw:gridConf:cod=${cod}; LinPos=${linPos}; Altura=${altura}; LinIni=${linIni}; LinFim=${linFim}; HabilitaNavegacao=1;"`;
+  }
+
   function maxTamFor(item) {
+    if (item.type === "grid") return Math.max(1, state.rows - item.lin + 1);
     return Math.max(1, snapCol(state.cols - item.col + 1));
   }
 
@@ -98,10 +118,11 @@
       else if (type === "display") id = `ds${labelNum}`;
       else if (type === "botao") id = `bt${(def.text || "Acao").replace(/\W/g, "")}`;
       else if (type === "btnConsultar") id = "btnConsultar";
+      else if (type === "grid") id = "grid1";
       else id = `${def.idPrefix}${state.nextSeq}`;
     }
 
-    return {
+    const item = {
       uid: uid(),
       type,
       id,
@@ -112,6 +133,14 @@
       tam: snapCol(overrides.tam ?? def.tam),
       labelNum: overrides.labelNum ?? ((type === "campo" || type === "multiselect") ? Number(String(id).replace(/\D/g, "")) || 1000 : null),
     };
+    if (type === "grid") {
+      item.col = 1;
+      item.tam = state.cols;
+      item.altura = Math.max(1, Math.round(overrides.altura ?? def.altura ?? 14));
+      item.cod = overrides.cod ?? 1;
+      item.text = overrides.text ?? "Grid";
+    }
+    return item;
   }
 
   function getSelected() {
@@ -190,6 +219,11 @@
       return { text, hint: "Coords do multiselect (%CSUTIMM)", copyText: text };
     }
 
+    if (item.type === "grid") {
+      const text = gridConfLine(item);
+      return { text, hint: "gridConf (TABGRID) — cole em 9000", copyText: text };
+    }
+
     return { text: "", hint: "", copyText: "" };
   }
 
@@ -233,7 +267,7 @@
     const snip = buildSnippet(item);
     updateSnippetPanel(item);
     const ok = await copyText(snip.copyText || snip.text);
-    if (ok) showToast(item.type === "campo" ? "CSLE copiado!" : "Tag copiada!");
+    if (ok) showToast(item.type === "campo" ? "CSLE copiado!" : item.type === "grid" ? "gridConf copiado!" : "Tag copiada!");
     hideItemMenu();
   }
 
@@ -266,48 +300,27 @@
     showToast("Renomeado");
   }
 
-  function setLayoutMode(mode) {
-    state.layoutMode = mode;
-    const comTab = mode === "com-tab";
-    el.tabBar.classList.toggle("hidden", !comTab);
-    el.screenShell.classList.toggle("mode-com-tab", comTab);
-    el.screenShell.classList.toggle("mode-sem-tab", !comTab);
-    el.modeBadge.textContent = comTab ? "Com Tab" : "Sem Tab";
-    render();
-  }
-
-  function syncAj() {
-    state.cols = clamp(Number(el.ajCols.value) || DEFAULT_COLS, 20, 108);
-    state.rows = clamp(Number(el.ajRows.value) || DEFAULT_ROWS, 5, 28);
-    el.ajCols.value = state.cols;
-    el.ajRows.value = state.rows;
-    el.windowTitle.textContent = `AJ ${state.cols} × ${state.rows}`;
-    el.ajBadge.textContent = `${state.cols} × ${state.rows}`;
-    el.canvas.style.width = `${state.cols * CELL_W}px`;
-    el.canvas.style.height = `${state.rows * CELL_H}px`;
-    el.canvas.style.setProperty("--cell-w", `${CELL_W}px`);
-    el.canvas.style.setProperty("--cell-h", `${CELL_H}px`);
-  }
-
-  function applyDefaultAj() {
-    el.ajCols.value = DEFAULT_COLS;
-    el.ajRows.value = DEFAULT_ROWS;
-    state.cols = DEFAULT_COLS;
-    state.rows = DEFAULT_ROWS;
+  function setItemAltura(item, nextAltura) {
+    item.altura = clamp(Math.round(Number(nextAltura) || 1), 1, Math.max(1, state.rows - item.lin + 1));
   }
 
   function validate() {
     const msgs = [];
-    if (state.layoutMode === "com-tab") {
-      msgs.push("Modo Com Tab: coordenadas relativas à aba");
-    }
     for (const item of state.items) {
       const w = visualWidth(item);
+      const h = visualHeight(item);
       if (item.lin < 1 || item.lin > state.rows) msgs.push(`${item.id}: linha fora da tela`);
-      if (item.col + w - 1 > state.cols + 0.01) msgs.push(`${item.id}: ultrapassa largura`);
+      if (item.lin + h - 1 > state.rows) msgs.push(`${item.id}: ultrapassa altura da tela`);
+      if (item.type !== "grid" && item.col + w - 1 > state.cols + 0.01) msgs.push(`${item.id}: ultrapassa largura`);
+    }
+    if (state.items.filter((i) => i.type === "grid").length > 1) {
+      msgs.push("Apenas 1 grid por tela neste editor");
     }
     const byLin = {};
-    for (const item of state.items) (byLin[item.lin] ||= []).push(item);
+    for (const item of state.items) {
+      if (item.type === "grid") continue;
+      (byLin[item.lin] ||= []).push(item);
+    }
     Object.values(byLin).forEach((list) => {
       for (let i = 0; i < list.length; i++) {
         for (let j = i + 1; j < list.length; j++) {
@@ -319,7 +332,6 @@
         }
       }
     });
-    // Labels curtas (TAM ≈ tamanho do texto) abrem vão no Consistem: texto alinha à direita só no fim da caixa.
     for (const label of state.items.filter((i) => i.type === "label")) {
       const campo = state.items
         .filter((i) => (i.type === "campo" || i.type === "multiselect") && i.lin === label.lin && i.col > label.col)
@@ -338,12 +350,40 @@
   }
 
   function setItemTam(item, nextTam) {
-    // Label no Consistem inteiriza TAM ($number(...,0)); demais mantêm meio-coluna.
+    if (item.type === "grid") {
+      setItemAltura(item, nextTam);
+      return;
+    }
     const snapped = item.type === "label" ? Math.max(1, Math.round(Number(nextTam))) : snapCol(nextTam);
     item.tam = clamp(snapped, 1, maxTamFor(item));
   }
 
   /** Estica labels até a coluna do campo da mesma linha (padrão Consistem: TAM ≈ COL_campo − COL_label). */
+  function syncAj() {
+    state.cols = clamp(Number(el.ajCols.value) || DEFAULT_COLS, 20, 108);
+    state.rows = clamp(Number(el.ajRows.value) || DEFAULT_ROWS, 5, 28);
+    el.ajCols.value = state.cols;
+    el.ajRows.value = state.rows;
+    el.windowTitle.textContent = `AJ ${state.cols} × ${state.rows}`;
+    el.ajBadge.textContent = `${state.cols} × ${state.rows}`;
+    el.canvas.style.width = `${state.cols * CELL_W}px`;
+    el.canvas.style.height = `${state.rows * CELL_H}px`;
+    el.canvas.style.setProperty("--cell-w", `${CELL_W}px`);
+    el.canvas.style.setProperty("--cell-h", `${CELL_H}px`);
+    // Grid sempre ocupa a largura da tela
+    state.items.filter((i) => i.type === "grid").forEach((g) => {
+      g.tam = state.cols;
+      setItemAltura(g, g.altura);
+    });
+  }
+
+  function applyDefaultAj() {
+    el.ajCols.value = DEFAULT_COLS;
+    el.ajRows.value = DEFAULT_ROWS;
+    state.cols = DEFAULT_COLS;
+    state.rows = DEFAULT_ROWS;
+  }
+
   function stretchLabelsToFields() {
     let n = 0;
     for (const label of state.items.filter((i) => i.type === "label")) {
@@ -374,7 +414,8 @@
     node.style.left = `${(item.col - 1) * CELL_W}px`;
     node.style.top = `${(item.lin - 1) * CELL_H}px`;
     node.style.width = `${visualWidth(item) * CELL_W}px`;
-    node.style.height = `${CELL_H - 4}px`;
+    const h = visualHeight(item);
+    node.style.height = `${h * CELL_H - 4}px`;
     node.style.marginTop = "2px";
 
     const labelEl = document.createElement("span");
@@ -386,13 +427,23 @@
     if (item.type === "botao") label = item.text || item.id;
     if (item.type === "btnConsultar") label = "Consultar / Limpar";
     if (item.type === "multiselect") label = `[${item.id} MM]`;
+    if (item.type === "grid") {
+      label = `Grid cod=${item.cod || 1} · LinPos=${item.lin} · Altura=${visualHeight(item)} · LinFim=${gridLinFim(item)}`;
+    }
     labelEl.textContent = label;
     node.appendChild(labelEl);
 
-    const handle = document.createElement("div");
-    handle.className = "resize-handle";
-    handle.title = "Arraste para alterar o tamanho (horizontal)";
-    node.appendChild(handle);
+    if (item.type === "grid") {
+      const handleV = document.createElement("div");
+      handleV.className = "resize-handle-v";
+      handleV.title = "Arraste para alterar a altura (Altura / LinFim)";
+      node.appendChild(handleV);
+    } else {
+      const handle = document.createElement("div");
+      handle.className = "resize-handle";
+      handle.title = "Arraste para alterar o tamanho (horizontal)";
+      node.appendChild(handle);
+    }
     node.addEventListener("mousedown", (ev) => onItemMouseDown(ev, item));
     return node;
   }
@@ -401,13 +452,17 @@
     const item = getSelected();
     el.propsSection.classList.toggle("hidden", !item);
     if (!item) return;
+    const isGrid = item.type === "grid";
     el.propId.value = item.id;
     el.propText.value = item.text || "";
     el.propVarRow.classList.toggle("hidden", item.type !== "campo");
+    el.propColRow.classList.toggle("hidden", isGrid);
     el.propVar.value = item.varName || "";
     el.propCol.value = item.col;
     el.propLin.value = item.lin;
-    el.propTam.value = item.tam;
+    el.propTam.value = isGrid ? item.altura : item.tam;
+    el.propLinLabel.textContent = isGrid ? "LinPos" : "Linha";
+    el.propTamLabel.textContent = isGrid ? "Altura" : "Tamanho";
     if (item.type === "campo") {
       el.propExtra.textContent = `TAM ${item.tam} (canvas). Na tela real o CSLE ocupa ~TAM+2 pelos [ ]. Máx: ${maxTamFor(item)}`;
     } else if (item.type === "label") {
@@ -416,6 +471,8 @@
         .sort((a, b) => a.col - b.col)[0];
       const ideal = campo ? fmt(snapCol(campo.col - item.col)) : "COL_campo−1";
       el.propExtra.textContent = `Caixa da label (texto à direita). Para colar no campo use TAM≈${ideal}, não o tamanho da palavra.`;
+    } else if (isGrid) {
+      el.propExtra.textContent = `Botões abaixo: linha ≥ ${gridLinFim(item) + 1}. Export: ${gridConfLine(item)}`;
     } else {
       el.propExtra.textContent = `col,lin,tam → ${item.col},${item.lin},${item.tam} · Máx: ${maxTamFor(item)}`;
     }
@@ -456,6 +513,16 @@
         lines.push(`\tquit:$$CSP^%CSW1UTI()`);
         lines.push("");
       });
+    const grids = state.items.filter((i) => i.type === "grid");
+    if (grids.length) {
+      if (lines.length) lines.push("");
+      grids.forEach((g) => {
+        lines.push(`kill TABGRID(${g.cod || 1})`);
+        lines.push(gridConfLine(g));
+        lines.push(`set sc=$$Inicializar^%CSW1GRID(CT,%PRG,${g.cod || 1},.TABGRID)`);
+        lines.push("");
+      });
+    }
     return lines.join("\n").trim();
   }
 
@@ -480,10 +547,11 @@
     ev.stopPropagation();
     hideItemMenu();
 
-    const resizing = !!ev.target.closest(".resize-handle");
+    const resizingH = !!ev.target.closest(".resize-handle");
+    const resizingV = !!ev.target.closest(".resize-handle-v");
+    const resizing = resizingH || resizingV;
     state.selectedId = item.uid;
 
-    // Atualiza seleção sem recriar o nó no meio do clique
     el.canvas.querySelectorAll(".item").forEach((n) => {
       n.classList.toggle("selected", n.dataset.uid === item.uid);
       n.classList.toggle("resizing", resizing && n.dataset.uid === item.uid);
@@ -496,18 +564,24 @@
     const startCol = item.col;
     const startLin = item.lin;
     const startTam = item.tam;
+    const startAltura = item.altura || 1;
     let moved = false;
 
     function onMove(e) {
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
       if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
-      if (resizing) {
+      if (resizingV || (resizingH && item.type === "grid")) {
+        setItemAltura(item, startAltura + dy / CELL_H);
+      } else if (resizingH) {
         setItemTam(item, startTam + dx / CELL_W);
+      } else if (item.type === "grid") {
+        item.col = 1;
+        item.lin = Math.round(clamp(startLin + dy / CELL_H, 1, state.rows));
+        setItemAltura(item, item.altura);
       } else {
         item.col = snapCol(clamp(startCol + dx / CELL_W, 1, state.cols));
         item.lin = Math.round(clamp(startLin + dy / CELL_H, 1, state.rows));
-        // Ao mover, garante que o tamanho ainda cabe
         setItemTam(item, item.tam);
       }
       render();
@@ -540,10 +614,19 @@
 
   function addFromPalette(type) {
     hideItemMenu();
-    const item = createItem(type, {
+    if (type === "grid" && state.items.some((i) => i.type === "grid")) {
+      showToast("Já existe um Grid — exclua o atual para criar outro");
+      return;
+    }
+    const overrides = {
       col: 1,
-      lin: Math.min(state.rows, state.items.length + 1),
-    });
+      lin: Math.min(state.rows, Math.max(1, state.items.filter((i) => i.type !== "grid").length + 1)),
+    };
+    if (type === "grid") {
+      overrides.lin = Math.min(5, state.rows);
+      overrides.altura = Math.min(14, Math.max(3, state.rows - overrides.lin));
+    }
+    const item = createItem(type, overrides);
     if (type === "campo") item.text = `Campo ${item.id}`;
     if (type === "label") item.text = "Novo Label";
     state.items.push(item);
@@ -557,9 +640,15 @@
     item.id = el.propId.value.trim() || item.id;
     item.text = el.propText.value;
     if (item.type === "campo") item.varName = el.propVar.value.trim() || "VAR";
-    item.col = snapCol(clamp(Number(el.propCol.value) || 1, 1, state.cols));
-    item.lin = Math.round(clamp(Number(el.propLin.value) || 1, 1, state.rows));
-    setItemTam(item, Number(el.propTam.value) || 1);
+    if (item.type === "grid") {
+      item.col = 1;
+      item.lin = Math.round(clamp(Number(el.propLin.value) || 1, 1, state.rows));
+      setItemAltura(item, Number(el.propTam.value) || 1);
+    } else {
+      item.col = snapCol(clamp(Number(el.propCol.value) || 1, 1, state.cols));
+      item.lin = Math.round(clamp(Number(el.propLin.value) || 1, 1, state.rows));
+      setItemTam(item, Number(el.propTam.value) || 1);
+    }
     render();
   }
 
@@ -626,10 +715,10 @@
     const items = [];
     let cols = state.cols;
     let rows = state.rows;
-    let mode = state.layoutMode;
     let pendingComment = "";
     let csleCount = 0;
     let tagCount = 0;
+    let gridCount = 0;
 
     text.split(/\r?\n/).forEach((raw) => {
       const line = raw.trim();
@@ -647,14 +736,25 @@
         rows = Number(m[2]);
         return;
       }
-      if (/modo:com-tab/i.test(line)) {
-        mode = "com-tab";
+
+      m = line.match(/csw:gridConf:([^"]+)/i) || line.match(/gridConf:([^"]+)/i);
+      if (m || /csw:gridConf:/i.test(line)) {
+        const body = (m ? m[1] : line).replace(/^;?\s*/, "");
+        const get = (key) => {
+          const km = body.match(new RegExp(`${key}\\s*=\\s*([^;]+)`, "i"));
+          return km ? Number(String(km[1]).trim()) : null;
+        };
+        const cod = get("cod") || 1;
+        const linPos = get("LinPos") || 5;
+        const altura = get("Altura") || 14;
+        const linFim = get("LinFim");
+        const h = linFim && linPos ? Math.max(1, linFim - linPos + 1) : altura;
+        items.push(createItem("grid", { lin: linPos, altura: h || altura, cod, text: "Grid" }));
+        gridCount++;
+        pendingComment = "";
         return;
       }
-      if (/modo:sem-tab/i.test(line)) {
-        mode = "sem-tab";
-        return;
-      }
+
       m = line.match(/csw:label:([^,]+),([^,]+),([^,]+),(.+)$/i);
       if (m) {
         items.push(createItem("label", { col: Number(m[1]), lin: Number(m[2]), tam: Number(m[3]), text: m[4].trim() }));
@@ -717,45 +817,23 @@
       }
     });
 
-    return { items, cols, rows, mode, csleCount, tagCount };
+    return { items, cols, rows, csleCount, tagCount, gridCount };
   }
 
-  function loadExampleTab() {
+  function loadExampleGrid() {
     hideItemMenu();
-    // Mantém AJ atual do usuário; se quiser resetar, descomente applyDefaultAj()
-    document.querySelector('input[name="layoutMode"][value="com-tab"]').checked = true;
-    setLayoutMode("com-tab");
-    state.items = [
-      createItem("label", { col: 1, lin: 1, tam: 11, text: "Cód. Natureza em Poder de Terceiros" }),
-      createItem("campo", { col: 12.5, lin: 1, tam: 5, id: "cp1000", labelNum: 1000, varName: "NAT" }),
-      createItem("display", { col: 18.5, lin: 1, tam: 20, id: "ds1000", text: "EM PODER DE 3ºS" }),
-      createItem("label", { col: 1, lin: 2, tam: 11, text: "Cód. Natureza Pendente Retorno Inv." }),
-      createItem("campo", { col: 12.5, lin: 2, tam: 21, id: "cp1100", labelNum: 1100, text: "36 / 56 / 58 / 75" }),
-      createItem("botao", { col: 1, lin: 15, tam: 15, id: "btSalvar", text: "Salvar" }),
-      createItem("botao", { col: 16.5, lin: 15, tam: 15, id: "btCancelar", text: "Cancelar" }),
-    ];
-    state.selectedId = null;
-    render();
-  }
-
-  function loadExampleNoTab() {
-    hideItemMenu();
-    el.ajCols.value = 70;
+    el.ajCols.value = 108;
     el.ajRows.value = 26;
-    document.querySelector('input[name="layoutMode"][value="sem-tab"]').checked = true;
-    setLayoutMode("sem-tab");
     state.items = [
-      createItem("label", { col: 1, lin: 1, tam: 15, text: "Empresas" }),
-      createItem("campo", { col: 16, lin: 1, tam: 4, id: "cp1000", labelNum: 1000, varName: "CDCE" }),
-      createItem("display", { col: 21, lin: 1, tam: 10, id: "ds1000", text: "Selecionados" }),
-      createItem("label", { col: 1, lin: 2, tam: 15, text: "Centro de Custo" }),
-      createItem("multiselect", { col: 16, lin: 2, tam: 12, id: "cp1100", labelNum: 1100, text: "Selecionados" }),
-      createItem("label", { col: 1, lin: 3, tam: 15, text: "Data Início" }),
-      createItem("campo", { col: 16, lin: 3, tam: 8, id: "cp1200", labelNum: 1200, varName: "DATINI" }),
-      createItem("display", { col: 25, lin: 3, tam: 10, id: "ds1200", text: "" }),
-      createItem("label", { col: 1, lin: 4, tam: 15, text: "Data Fim" }),
-      createItem("campo", { col: 16, lin: 4, tam: 8, id: "cp1300", labelNum: 1300, varName: "DATFIM" }),
-      createItem("btnConsultar", { col: 50, lin: 2, tam: 12 }),
+      createItem("label", { col: 1, lin: 3, tam: 18, text: "Data Reserva De*" }),
+      createItem("campo", { col: 19, lin: 3, tam: 5, id: "cp1100", labelNum: 1100, varName: "DATINI" }),
+      createItem("label", { col: 1, lin: 3, tam: 30, text: "Até*" }),
+      createItem("campo", { col: 31, lin: 3, tam: 5, id: "cp1200", labelNum: 1200, varName: "DATFIM" }),
+      createItem("label", { col: 1, lin: 4, tam: 18, text: "Natureza*" }),
+      createItem("btnConsultar", { col: 96, lin: 3, tam: 12 }),
+      createItem("grid", { lin: 5, altura: 18, cod: 1 }),
+      createItem("botao", { col: 1, lin: 25, tam: 15, id: "btSalvar", text: "Salvar" }),
+      createItem("botao", { col: 16.5, lin: 25, tam: 15, id: "btCancelar", text: "Cancelar" }),
     ];
     state.selectedId = null;
     render();
@@ -763,10 +841,6 @@
 
   ["ajCols", "ajRows"].forEach((k) => {
     el[k].addEventListener("change", render);
-  });
-
-  document.querySelectorAll('input[name="layoutMode"]').forEach((radio) => {
-    radio.addEventListener("change", () => setLayoutMode(radio.value));
   });
 
   document.querySelectorAll(".palette-item").forEach((btn) => {
@@ -831,18 +905,18 @@
     const parsed = parseImport(raw);
     const hasCsleText = /%CSLE\s*\(/i.test(raw);
     if (!parsed.items.length) {
-      showToast("Nada para importar (tags csw ou %CSLE)");
+      showToast("Nada para importar (tags csw, gridConf ou %CSLE)");
       return;
     }
     el.ajCols.value = parsed.cols;
     el.ajRows.value = parsed.rows;
-    document.querySelector(`input[name="layoutMode"][value="${parsed.mode}"]`).checked = true;
     state.items = parsed.items;
     state.selectedId = null;
-    setLayoutMode(parsed.mode);
+    render();
     const parts = [];
     if (parsed.csleCount) parts.push(`${parsed.csleCount} campo(s) CSLE`);
     if (parsed.tagCount) parts.push(`${parsed.tagCount} tag(s)`);
+    if (parsed.gridCount) parts.push(`${parsed.gridCount} grid`);
     if (hasCsleText && !parsed.csleCount) {
       showToast("Tags ok, mas %CSLE não foi lido — confira a linha");
     } else {
@@ -850,8 +924,7 @@
     }
   });
 
-  document.getElementById("btnExampleTab").addEventListener("click", loadExampleTab);
-  document.getElementById("btnExampleNoTab").addEventListener("click", loadExampleNoTab);
+  document.getElementById("btnExampleGrid").addEventListener("click", loadExampleGrid);
 
   el.canvas.addEventListener("mousedown", () => {
     hideItemMenu();
@@ -859,7 +932,6 @@
     render();
   });
 
-  setLayoutMode("sem-tab");
   applyDefaultAj();
   render();
 })();

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CamposCSW — Layout visual CSW</title>
-  <link rel="stylesheet" href="css/styles.css?v=12" />
+  <link rel="stylesheet" href="css/styles.css?v=13" />
 </head>
 <body>
   <header class="topbar">
@@ -13,8 +13,7 @@
       <span>Editor visual de labels, campos e displays</span>
     </div>
     <div class="top-actions">
-      <button type="button" id="btnExampleTab" class="btn ghost">Exemplo com Tab</button>
-      <button type="button" id="btnExampleNoTab" class="btn ghost">Exemplo sem Tab</button>
+      <button type="button" id="btnExampleGrid" class="btn ghost">Exemplo com Grid</button>
       <button type="button" id="btnClear" class="btn ghost danger">Limpar</button>
       <button type="button" id="btnCopyAll" class="btn ghost">Copiar export completo</button>
     </div>
@@ -37,27 +36,6 @@
       </section>
 
       <section>
-        <h2>Modo de layout</h2>
-        <div class="mode-toggle" role="group" aria-label="Modo de layout">
-          <label class="mode-option">
-            <input type="radio" name="layoutMode" value="sem-tab" checked />
-            <span>
-              <strong>Sem Tab</strong>
-              <small>Campos na tela principal</small>
-            </span>
-          </label>
-          <label class="mode-option">
-            <input type="radio" name="layoutMode" value="com-tab" />
-            <span>
-              <strong>Com Tab</strong>
-              <small>Campos dentro da aba</small>
-            </span>
-          </label>
-        </div>
-        <p class="hint">Só define se as coordenadas são relativas à aba ou à tela.</p>
-      </section>
-
-      <section>
         <h2>Paleta</h2>
         <div class="palette">
           <button type="button" class="palette-item" data-type="label">Label</button>
@@ -65,9 +43,11 @@
           <button type="button" class="palette-item" data-type="display">Display</button>
           <button type="button" class="palette-item" data-type="botao">Botão</button>
           <button type="button" class="palette-item" data-type="btnConsultar">BtnConsultar</button>
+          <button type="button" class="palette-item" data-type="grid">Grid</button>
         </div>
         <p class="hint">Clique para adicionar. Arraste no canvas. Clique no item para Renomear / Copiar / Excluir.</p>
-        <p class="hint">Label: TAM = largura da caixa (texto à direita). Todas as labels da coluna devem ter o <strong>mesmo TAM</strong>, até perto do campo (ex.: campo col 14 → label TAM 13).</p>
+        <p class="hint">Grid: bloco da área da tabela — arraste a borda inferior para altura. Coloque botões <strong>abaixo</strong> do grid.</p>
+        <p class="hint">Label: TAM = largura da caixa (texto à direita). Todas as labels da coluna devem ter o <strong>mesmo TAM</strong>, até perto do campo.</p>
         <button type="button" id="btnStretchLabels" class="btn ghost" style="width:100%;margin-top:0.35rem">Esticar labels até o campo</button>
       </section>
 
@@ -85,23 +65,23 @@
           <label for="propVar">Variável</label>
           <input id="propVar" type="text" placeholder="CDCE" />
         </div>
-        <div class="form-row">
-          <label for="propCol">Coluna</label>
+        <div id="propColRow" class="form-row">
+          <label id="propColLabel" for="propCol">Coluna</label>
           <input id="propCol" type="number" step="0.5" min="1" />
         </div>
         <div class="form-row">
-          <label for="propLin">Linha</label>
+          <label id="propLinLabel" for="propLin">Linha</label>
           <input id="propLin" type="number" step="1" min="1" />
         </div>
         <div class="form-row">
-          <label for="propTam">Tamanho</label>
+          <label id="propTamLabel" for="propTam">Tamanho</label>
           <div class="tam-controls">
             <button type="button" id="btnTamMinus" class="btn tam-btn" title="Diminuir">−</button>
             <input id="propTam" type="number" step="0.5" min="1" />
             <button type="button" id="btnTamPlus" class="btn tam-btn" title="Aumentar">+</button>
           </div>
         </div>
-        <p class="hint">Arraste a borda direita do item no canvas para alongar (campo/display).</p>
+        <p class="hint">Arraste a borda direita (ou inferior no Grid) para redimensionar.</p>
         <p id="propExtra" class="hint"></p>
       </section>
     </aside>
@@ -109,13 +89,10 @@
     <section class="canvas-wrap">
       <div class="window-chrome">
         <div class="window-title" id="windowTitle">Layout CSW</div>
-        <div class="window-meta">AJ <span id="ajBadge">80 × 17</span> · <span id="modeBadge">Sem Tab</span></div>
+        <div class="window-meta">AJ <span id="ajBadge">80 × 17</span></div>
       </div>
       <div class="canvas-scroll">
-        <div id="screenShell" class="screen-shell mode-sem-tab">
-          <div id="tabBar" class="tab-bar hidden">
-            <div class="tab-chip active">Aba</div>
-          </div>
+        <div id="screenShell" class="screen-shell">
           <div id="canvas" class="canvas" aria-label="Canvas da tela CSW"></div>
         </div>
       </div>
@@ -133,15 +110,15 @@
         <h2>Export completo</h2>
         <div class="export-tabs">
           <button type="button" class="tab active" data-export="tags">Tags CSW</button>
-          <button type="button" class="tab" data-export="csle">CSLE / coords</button>
+          <button type="button" class="tab" data-export="csle">CSLE / Grid</button>
           <button type="button" class="tab" data-export="all">Tudo</button>
         </div>
         <textarea id="exportOut" readonly spellcheck="false"></textarea>
       </section>
       <section>
         <h2>Importar</h2>
-        <p class="hint">Aceita <code>csw:</code>, <code>%CSLE</code> (LIN,COL,TAM) e <code>%CSUTIMM</code> (coords no final).</p>
-        <textarea id="importIn" placeholder="; csw:label:1,1,15,Empresas&#10;1000ON do ^%CSLE(1,16,4,...&#10;; csw:display:21,1,10,ds1000&#10;; csw:btnConsultar:50,2,..." spellcheck="false"></textarea>
+        <p class="hint">Aceita <code>csw:</code>, <code>%CSLE</code>, <code>gridConf</code> e <code>%CSUTIMM</code>.</p>
+        <textarea id="importIn" placeholder="; csw:label:1,1,15,Empresas&#10;set TABGRID(1)=&quot;; csw:gridConf:cod=1; LinPos=5; Altura=18; ...&#10;1000ON do ^%CSLE(1,16,4,..." spellcheck="false"></textarea>
         <button type="button" id="btnApplyImport" class="btn primary full">Aplicar no canvas</button>
       </section>
     </aside>
@@ -153,6 +130,6 @@
     <button type="button" data-action="delete" class="danger" role="menuitem">Excluir</button>
   </div>
 
-  <script src="js/app.js?v=12"></script>
+  <script src="js/app.js?v=13"></script>
 </body>
 </html>
