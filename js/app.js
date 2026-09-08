@@ -1,6 +1,7 @@
 (() => {
-  const CELL_W = 14;
-  const CELL_H = 28;
+  // Grade aproximada do Consistem Faces (~9×20 px)
+  const CELL_W = 9;
+  const CELL_H = 20;
   const HALF = 0.5;
   const DEFAULT_COLS = 80;
   const DEFAULT_ROWS = 17;
@@ -315,11 +316,45 @@
         }
       }
     });
+    // Labels curtas (TAM ≈ tamanho do texto) abrem vão no Consistem: texto alinha à direita só no fim da caixa.
+    for (const label of state.items.filter((i) => i.type === "label")) {
+      const campo = state.items
+        .filter((i) => (i.type === "campo" || i.type === "multiselect") && i.lin === label.lin && i.col > label.col)
+        .sort((a, b) => a.col - b.col)[0];
+      if (!campo) continue;
+      const ideal = snapCol(campo.col - label.col);
+      if (ideal - label.tam >= 2) {
+        msgs.push(`${label.text || label.id}: TAM ${fmt(label.tam)} curto (ideal ~${fmt(ideal)} até o campo)`);
+      }
+    }
+    const labelTams = state.items.filter((i) => i.type === "label" && i.col === 1).map((i) => i.tam);
+    if (labelTams.length >= 2 && new Set(labelTams.map(fmt)).size > 1) {
+      msgs.push("Labels na col 1 com TAM diferente → escada no Consistem (use o mesmo TAM)");
+    }
     el.warnings.textContent = msgs.join(" · ");
   }
 
   function setItemTam(item, nextTam) {
-    item.tam = clamp(snapCol(nextTam), 1, maxTamFor(item));
+    // Label no Consistem inteiriza TAM ($number(...,0)); demais mantêm meio-coluna.
+    const snapped = item.type === "label" ? Math.max(1, Math.round(Number(nextTam))) : snapCol(nextTam);
+    item.tam = clamp(snapped, 1, maxTamFor(item));
+  }
+
+  /** Estica labels até a coluna do campo da mesma linha (padrão Consistem: TAM ≈ COL_campo − COL_label). */
+  function stretchLabelsToFields() {
+    let n = 0;
+    for (const label of state.items.filter((i) => i.type === "label")) {
+      const campo = state.items
+        .filter((i) => (i.type === "campo" || i.type === "multiselect") && i.lin === label.lin && i.col > label.col)
+        .sort((a, b) => a.col - b.col)[0];
+      if (!campo) continue;
+      const target = snapCol(campo.col - label.col);
+      if (target >= 1 && Math.abs(label.tam - target) > 0.01) {
+        setItemTam(label, target);
+        n += 1;
+      }
+    }
+    return n;
   }
 
   function rangesOverlap(a0, aW, b0, bW) {
@@ -373,7 +408,11 @@
     if (item.type === "campo") {
       el.propExtra.textContent = `TAM ${item.tam} (canvas). Na tela real o CSLE ocupa ~TAM+2 pelos [ ]. Máx: ${maxTamFor(item)}`;
     } else if (item.type === "label") {
-      el.propExtra.textContent = `Largura da caixa (não o texto). Texto alinha à direita. Ex.: tam 12 com campo na col 14.`;
+      const campo = state.items
+        .filter((i) => (i.type === "campo" || i.type === "multiselect") && i.lin === item.lin && i.col > item.col)
+        .sort((a, b) => a.col - b.col)[0];
+      const ideal = campo ? fmt(snapCol(campo.col - item.col)) : "COL_campo−1";
+      el.propExtra.textContent = `Caixa da label (texto à direita). Para colar no campo use TAM≈${ideal}, não o tamanho da palavra.`;
     } else {
       el.propExtra.textContent = `col,lin,tam → ${item.col},${item.lin},${item.tam} · Máx: ${maxTamFor(item)}`;
     }
@@ -770,6 +809,12 @@
     state.items = [];
     state.selectedId = null;
     render();
+  });
+
+  document.getElementById("btnStretchLabels").addEventListener("click", () => {
+    const n = stretchLabelsToFields();
+    render();
+    showToast(n ? `${n} label(s) esticada(s) até o campo` : "Nenhuma label para ajustar");
   });
 
   document.getElementById("btnCopyAll").addEventListener("click", async () => {

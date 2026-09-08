@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CamposCSW — Layout visual CSW</title>
-  <link rel="stylesheet" href="css/styles.css?v=9" />
+  <link rel="stylesheet" href="css/styles.css?v=11" />
 </head>
 <body>
   <header class="topbar">
@@ -67,7 +67,8 @@
           <button type="button" class="palette-item" data-type="btnConsultar">BtnConsultar</button>
         </div>
         <p class="hint">Clique para adicionar. Arraste no canvas. Clique no item para Renomear / Copiar / Excluir.</p>
-        <p class="hint">Campo CSLE no canvas usa o TAM; display costuma ficar em COL+TAM+1.</p>
+        <p class="hint">Label: TAM = largura da caixa (texto à direita). Todas as labels da coluna devem ter o <strong>mesmo TAM</strong>, até perto do campo (ex.: campo col 14 → label TAM 13).</p>
+        <button type="button" id="btnStretchLabels" class="btn ghost" style="width:100%;margin-top:0.35rem">Esticar labels até o campo</button>
       </section>
 
       <section id="propsSection" class="hidden">
@@ -152,6 +153,6 @@
     <button type="button" data-action="delete" class="danger" role="menuitem">Excluir</button>
   </div>
 
-  <script src="js/app.js?v=10"></script>
+  <script src="js/app.js?v=11"></script>
 </body>
 </html>
