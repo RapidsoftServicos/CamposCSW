@@ -388,35 +388,29 @@
 
   function exportTags() {
     const lines = [];
-    lines.push(`; csw:aj:${state.cols},${state.rows}`);
-    lines.push(state.layoutMode === "com-tab" ? "; modo:com-tab" : "; modo:sem-tab");
-    if (state.layoutMode === "com-tab") lines.push("; csw:labelseltab:0500");
-    lines.push("");
     state.items
       .filter((i) => i.type === "label")
       .sort((a, b) => a.lin - b.lin || a.col - b.col)
       .forEach((i) => lines.push(`; csw:label:${fmt(i.col)},${i.lin},${fmt(i.tam)},${i.text}`));
     const displays = state.items.filter((i) => i.type === "display");
-    if (displays.length) lines.push("");
+    if (displays.length && lines.length) lines.push("");
     displays
       .sort((a, b) => a.lin - b.lin || a.col - b.col)
       .forEach((i) => lines.push(`; csw:display:${fmt(i.col)},${i.lin},${fmt(i.tam)},${i.id}`));
     const botoes = state.items.filter((i) => i.type === "botao");
-    if (botoes.length) lines.push("");
+    if (botoes.length && lines.length) lines.push("");
     botoes.forEach((i) => {
       const nome = i.text || "Acao";
       lines.push(`; csw:botao:${fmt(i.col)},${i.lin},${i.id},<u>${nome.charAt(0)}</u>${nome.slice(1)},${nome.charAt(0).toLowerCase()},3000^ROTINA,salvar,${nome},${fmt(i.tam)}`);
     });
     const btnC = state.items.filter((i) => i.type === "btnConsultar");
-    if (btnC.length) lines.push("");
+    if (btnC.length && lines.length) lines.push("");
     btnC.forEach((i) => lines.push(`; csw:btnConsultar:${fmt(i.col)},${i.lin},2000^ROTINA,0500^ROTINA`));
     return lines.join("\n");
   }
 
   function exportCsle() {
     const lines = [];
-    lines.push(`; modo ${state.layoutMode}`);
-    lines.push("");
     state.items
       .filter((i) => i.type === "campo")
       .sort((a, b) => a.lin - b.lin || a.col - b.col)
@@ -427,7 +421,7 @@
         lines.push(`\tquit:$$CSP^%CSW1UTI()`);
         lines.push("");
       });
-    return lines.join("\n");
+    return lines.join("\n").trim();
   }
 
   function renderExport() {
