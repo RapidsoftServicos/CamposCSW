@@ -70,7 +70,8 @@ button, input, textarea { font: inherit; color: inherit; }
 }
 
 #snippetOut {
-  min-height: 140px;
+  min-height: 64px;
+  max-height: 90px;
   background: #0f172a;
   color: #f8fafc;
   border-color: #334155;
@@ -147,13 +148,13 @@ button, input, textarea { font: inherit; color: inherit; }
 }
 
 .panel section + section {
-  margin-top: 1rem;
-  padding-top: 1rem;
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
   border-top: 1px solid var(--line);
 }
 
 .panel h2 {
-  margin: 0 0 0.65rem;
+  margin: 0 0 0.4rem;
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -480,20 +481,27 @@ button, input, textarea { font: inherit; color: inherit; }
 
 textarea {
   width: 100%;
-  min-height: 220px;
+  min-height: 110px;
+  max-height: 160px;
   resize: vertical;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 0.6rem;
+  padding: 0.45rem 0.55rem;
   background: #111827;
   color: #e5e7eb;
   font: 12px/1.45 var(--mono);
 }
 
 #importIn {
-  min-height: 120px;
+  min-height: 72px;
+  max-height: 110px;
   background: var(--surface);
   color: var(--ink);
+}
+
+#exportOut {
+  min-height: 100px;
+  max-height: 140px;
 }
 
 .hidden { display: none !important; }
