@@ -498,15 +498,118 @@
     render();
   }
 
+  function splitMumpsArgs(inner) {
+    const args = [];
+    let cur = "";
+    let inQuote = false;
+    let depth = 0;
+    for (let i = 0; i < inner.length; i++) {
+      const ch = inner[i];
+      if (ch === '"') {
+        // "" dentro de string MUMPS
+        if (inQuote && inner[i + 1] === '"') {
+          cur += '""';
+          i++;
+          continue;
+        }
+        inQuote = !inQuote;
+        cur += ch;
+        continue;
+      }
+      if (!inQuote) {
+        if (ch === "(") {
+          depth++;
+          cur += ch;
+          continue;
+        }
+        if (ch === ")") {
+          depth = Math.max(0, depth - 1);
+          cur += ch;
+          continue;
+        }
+        if (ch === "," && depth === 0) {
+          args.push(cur.trim());
+          cur = "";
+          continue;
+        }
+      }
+      cur += ch;
+    }
+    if (cur.length || args.length) args.push(cur.trim());
+    return args;
+  }
+
+  function unquoteMumps(v) {
+    const s = String(v || "").trim();
+    if (s.length >= 2 && s.startsWith('"') && s.endsWith('"')) {
+      return s.slice(1, -1).replace(/""/g, '"');
+    }
+    return s;
+  }
+
+  function extractCpId(args, line) {
+    // RAUX = 9º parâmetro (índice 8): pieces ; → 4º = nome CSW1 (cp1000)
+    if (args[8]) {
+      const raux = unquoteMumps(args[8]);
+      const parts = raux.split(";");
+      if (parts[3] && /^cp\d+/i.test(parts[3].trim())) return parts[3].trim();
+      const inRaux = raux.match(/\b(cp\d+)\b/i);
+      if (inRaux) return inRaux[1];
+    }
+    const inLine = String(line).match(/\b(cp\d+)\b/i);
+    return inLine ? inLine[1] : "";
+  }
+
+  function parseCsleLine(line, labelHint) {
+    const onMatch = line.match(/^(\d+)ON\b/i);
+    const callMatch = line.match(/\^%CSLE\s*\((.*)\)\s*$/i) || line.match(/do\s+\^%CSLE\s*\((.*)\)/i);
+    if (!callMatch) return null;
+
+    const args = splitMumpsArgs(callMatch[1]);
+    if (args.length < 3) return null;
+
+    const lin = Number(args[0]);
+    const col = Number(args[1]);
+    const tam = Number(args[2]);
+    if (Number.isNaN(lin) || Number.isNaN(col) || Number.isNaN(tam)) return null;
+
+    const varRaw = unquoteMumps(args[3] || "VAR");
+    const varName = /^\$piece\(/i.test(varRaw) ? "VAR" : (varRaw || "VAR");
+    const cpId = extractCpId(args, line);
+    const labelNum = onMatch
+      ? Number(onMatch[1])
+      : (cpId ? Number(String(cpId).replace(/\D/g, "")) : null);
+
+    return createItem("campo", {
+      col,
+      lin,
+      tam,
+      id: cpId || (labelNum ? `cp${labelNum}` : undefined),
+      labelNum: labelNum || undefined,
+      varName,
+      text: labelHint || (cpId ? `Campo ${cpId}` : `Campo L${lin}`),
+    });
+  }
+
   function parseImport(text) {
     const items = [];
     let cols = state.cols;
     let rows = state.rows;
     let mode = state.layoutMode;
+    let pendingComment = "";
+    let csleCount = 0;
+    let tagCount = 0;
 
     text.split(/\r?\n/).forEach((raw) => {
       const line = raw.trim();
       if (!line) return;
+
+      // Comentário de label de negócio (; Descrição) — usado no próximo CSLE
+      if (/^;\s*[^cC]/.test(line) || /^;\s*$/.test(line)) {
+        if (!/csw:/i.test(line)) {
+          pendingComment = line.replace(/^;\s*/, "").trim();
+        }
+      }
 
       let m = line.match(/csw:aj:([^,]+),([^,\s;]+)/i);
       if (m) {
@@ -525,11 +628,15 @@
       m = line.match(/csw:label:([^,]+),([^,]+),([^,]+),(.+)$/i);
       if (m) {
         items.push(createItem("label", { col: Number(m[1]), lin: Number(m[2]), tam: Number(m[3]), text: m[4].trim() }));
+        tagCount++;
+        pendingComment = "";
         return;
       }
       m = line.match(/csw:display:([^,]+),([^,]+),([^,]+),([^,\s]+)/i);
       if (m) {
         items.push(createItem("display", { col: Number(m[1]), lin: Number(m[2]), tam: Number(m[3]), id: m[4].trim() }));
+        tagCount++;
+        pendingComment = "";
         return;
       }
       if (/csw:botao:/i.test(line)) {
@@ -542,13 +649,30 @@
           text: (p[7] || p[3] || "Botão").replace(/<[^>]+>/g, ""),
           tam: Number(p[8] || 15),
         }));
+        tagCount++;
+        pendingComment = "";
         return;
       }
       m = line.match(/csw:btnConsultar:([^,]+),([^,]+)/i);
-      if (m) items.push(createItem("btnConsultar", { col: Number(m[1]), lin: Number(m[2]), tam: 12 }));
+      if (m) {
+        items.push(createItem("btnConsultar", { col: Number(m[1]), lin: Number(m[2]), tam: 12 }));
+        tagCount++;
+        pendingComment = "";
+        return;
+      }
+
+      // Campo CSLE: 1000ON do ^%CSLE(LIN,COL,TAM,...)
+      if (/%CSLE\s*\(/i.test(line)) {
+        const campo = parseCsleLine(line, pendingComment);
+        if (campo) {
+          items.push(campo);
+          csleCount++;
+        }
+        pendingComment = "";
+      }
     });
 
-    return { items, cols, rows, mode };
+    return { items, cols, rows, mode, csleCount, tagCount };
   }
 
   function loadExampleTab() {
@@ -650,6 +774,10 @@
   document.getElementById("btnApplyImport").addEventListener("click", () => {
     hideItemMenu();
     const parsed = parseImport(el.importIn.value);
+    if (!parsed.items.length) {
+      showToast("Nada para importar (tags csw ou %CSLE)");
+      return;
+    }
     el.ajCols.value = parsed.cols;
     el.ajRows.value = parsed.rows;
     document.querySelector(`input[name="layoutMode"][value="${parsed.mode}"]`).checked = true;
@@ -657,6 +785,10 @@
     state.items = parsed.items;
     state.selectedId = null;
     render();
+    const parts = [];
+    if (parsed.csleCount) parts.push(`${parsed.csleCount} CSLE`);
+    if (parsed.tagCount) parts.push(`${parsed.tagCount} tag(s)`);
+    showToast(`Importado: ${parts.join(" + ") || parsed.items.length + " item(ns)"}`);
   });
 
   document.getElementById("btnExampleTab").addEventListener("click", loadExampleTab);
