@@ -498,87 +498,37 @@
     render();
   }
 
-  function splitMumpsArgs(inner) {
-    const args = [];
-    let cur = "";
-    let inQuote = false;
-    let depth = 0;
-    for (let i = 0; i < inner.length; i++) {
-      const ch = inner[i];
-      if (ch === '"') {
-        // "" dentro de string MUMPS
-        if (inQuote && inner[i + 1] === '"') {
-          cur += '""';
-          i++;
-          continue;
-        }
-        inQuote = !inQuote;
-        cur += ch;
-        continue;
-      }
-      if (!inQuote) {
-        if (ch === "(") {
-          depth++;
-          cur += ch;
-          continue;
-        }
-        if (ch === ")") {
-          depth = Math.max(0, depth - 1);
-          cur += ch;
-          continue;
-        }
-        if (ch === "," && depth === 0) {
-          args.push(cur.trim());
-          cur = "";
-          continue;
-        }
-      }
-      cur += ch;
-    }
-    if (cur.length || args.length) args.push(cur.trim());
-    return args;
-  }
-
-  function unquoteMumps(v) {
-    const s = String(v || "").trim();
-    if (s.length >= 2 && s.startsWith('"') && s.endsWith('"')) {
-      return s.slice(1, -1).replace(/""/g, '"');
-    }
-    return s;
-  }
-
-  function extractCpId(args, line) {
-    // RAUX = 9º parâmetro (índice 8): pieces ; → 4º = nome CSW1 (cp1000)
-    if (args[8]) {
-      const raux = unquoteMumps(args[8]);
-      const parts = raux.split(";");
-      if (parts[3] && /^cp\d+/i.test(parts[3].trim())) return parts[3].trim();
-      const inRaux = raux.match(/\b(cp\d+)\b/i);
-      if (inRaux) return inRaux[1];
-    }
-    const inLine = String(line).match(/\b(cp\d+)\b/i);
-    return inLine ? inLine[1] : "";
-  }
-
+  // CSLE: só precisa de LIN,COL,TAM — lê até a 3ª vírgula após %CSLE(
+  // Ex.: do ^%CSLE(1,16,4, ....qualquer coisa...)
   function parseCsleLine(line, labelHint) {
-    const onMatch = line.match(/^(\d+)ON\b/i);
-    const callMatch = line.match(/\^%CSLE\s*\((.*)\)\s*$/i) || line.match(/do\s+\^%CSLE\s*\((.*)\)/i);
-    if (!callMatch) return null;
+    const start = line.search(/\^%CSLE\s*\(/i);
+    if (start < 0) return null;
 
-    const args = splitMumpsArgs(callMatch[1]);
-    if (args.length < 3) return null;
+    const open = line.indexOf("(", start);
+    if (open < 0) return null;
 
-    const lin = Number(args[0]);
-    const col = Number(args[1]);
-    const tam = Number(args[2]);
+    const after = line.slice(open + 1);
+    const parts = after.split(",");
+    if (parts.length < 3) return null;
+
+    const lin = Number(String(parts[0]).trim());
+    const col = Number(String(parts[1]).trim());
+    const tam = Number(String(parts[2]).trim());
     if (Number.isNaN(lin) || Number.isNaN(col) || Number.isNaN(tam)) return null;
 
-    const varRaw = unquoteMumps(args[3] || "VAR");
-    const varName = /^\$piece\(/i.test(varRaw) ? "VAR" : (varRaw || "VAR");
-    const cpId = extractCpId(args, line);
+    const onMatch = line.match(/^(\d+)ON\b/i);
+    const cpMatch = line.match(/\b(cp\d+)\b/i);
+    const cpId = cpMatch ? cpMatch[1] : "";
     const labelNum = onMatch
       ? Number(onMatch[1])
       : (cpId ? Number(String(cpId).replace(/\D/g, "")) : null);
+
+    // Variável (4º parâmetro), se for simples tipo "CDCE" / CDCE
+    let varName = "VAR";
+    if (parts[3] !== undefined) {
+      const v = String(parts[3]).trim().replace(/^"|"$/g, "");
+      if (v && !/^\$piece\(/i.test(v) && !/[(),]/.test(v)) varName = v;
+    }
 
     return createItem("campo", {
       col,
