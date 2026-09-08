@@ -245,6 +245,34 @@
     render();
   }
 
+  function fitLabelTam(item) {
+    if (item.type !== "label") return;
+    const len = String(item.text || "").length;
+    if (len > 0) setItemTam(item, Math.max(Number(item.tam) || 1, len));
+  }
+
+  function renameSelectedItem() {
+    const item = getMenuItem() || getSelected();
+    if (!item) return;
+    hideItemMenu();
+    const atual = item.text || item.id || "";
+    const novo = window.prompt("Nome / texto do item:", atual);
+    if (novo === null) return;
+    const texto = String(novo).trim();
+    if (!texto) {
+      showToast("Nome vazio — mantido");
+      return;
+    }
+    item.text = texto;
+    if (item.type === "label") fitLabelTam(item);
+    if (item.type === "botao" && !String(item.id || "").startsWith("bt")) {
+      /* keep id */
+    }
+    state.selectedId = item.uid;
+    render();
+    showToast("Renomeado");
+  }
+
   function setLayoutMode(mode) {
     state.layoutMode = mode;
     const comTab = mode === "com-tab";
@@ -488,7 +516,16 @@
       lin: Math.min(state.rows, state.items.length + 1),
     });
     if (type === "campo") item.text = `Campo ${item.id}`;
-    if (type === "label") item.text = "Novo Label";
+    if (type === "label") {
+      const nome = window.prompt("Texto da label:", "Novo Label");
+      if (nome === null) return; // cancelou — não adiciona
+      item.text = String(nome).trim() || "Novo Label";
+      fitLabelTam(item);
+    }
+    if (type === "botao") {
+      const nome = window.prompt("Texto do botão:", item.text || "Salvar");
+      if (nome !== null && String(nome).trim()) item.text = String(nome).trim();
+    }
     state.items.push(item);
     state.selectedId = item.uid;
     render();
@@ -739,6 +776,7 @@
     const btn = ev.target.closest("button[data-action]");
     if (!btn) return;
     ev.stopPropagation();
+    if (btn.dataset.action === "rename") renameSelectedItem();
     if (btn.dataset.action === "copy") copySelectedItem();
     if (btn.dataset.action === "delete") deleteSelectedItem();
   });

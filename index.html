@@ -66,7 +66,7 @@
           <button type="button" class="palette-item" data-type="botao">Botão</button>
           <button type="button" class="palette-item" data-type="btnConsultar">BtnConsultar</button>
         </div>
-        <p class="hint">Clique para adicionar. Arraste no canvas. Clique no item para Copiar ou Excluir.</p>
+        <p class="hint">Clique para adicionar. Arraste no canvas. Clique no item para Renomear / Copiar / Excluir.</p>
         <p class="hint">Campo CSLE no canvas usa o TAM; display costuma ficar em COL+TAM+1.</p>
       </section>
 
@@ -124,7 +124,7 @@
     <aside class="panel right">
       <section>
         <h2>Snippet do item</h2>
-        <p class="hint">Clique no item → escolha <strong>Copiar</strong> ou <strong>Excluir</strong>.</p>
+        <p class="hint">Clique no item → <strong>Renomear</strong>, <strong>Copiar</strong> ou <strong>Excluir</strong>.</p>
         <textarea id="snippetOut" readonly spellcheck="false" placeholder="Selecione um item e use Copiar no menu..."></textarea>
         <p id="snippetHint" class="hint"></p>
       </section>
@@ -147,10 +147,11 @@
   </main>
 
   <div id="itemMenu" class="item-menu hidden" role="menu">
+    <button type="button" data-action="rename" role="menuitem">Renomear</button>
     <button type="button" data-action="copy" role="menuitem">Copiar</button>
     <button type="button" data-action="delete" class="danger" role="menuitem">Excluir</button>
   </div>
 
-  <script src="js/app.js?v=5"></script>
+  <script src="js/app.js?v=6"></script>
 </body>
 </html>
