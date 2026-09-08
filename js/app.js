@@ -245,12 +245,6 @@
     render();
   }
 
-  function fitLabelTam(item) {
-    if (item.type !== "label") return;
-    const len = String(item.text || "").length;
-    if (len > 0) setItemTam(item, Math.max(Number(item.tam) || 1, len));
-  }
-
   function renameSelectedItem() {
     const item = getMenuItem() || getSelected();
     if (!item) return;
@@ -264,10 +258,7 @@
       return;
     }
     item.text = texto;
-    if (item.type === "label") fitLabelTam(item);
-    if (item.type === "botao" && !String(item.id || "").startsWith("bt")) {
-      /* keep id */
-    }
+    // Label: NÃO encolhe o TAM — no Consistem o texto alinha à direita DENTRO da largura
     state.selectedId = item.uid;
     render();
     showToast("Renomeado");
@@ -381,6 +372,8 @@
     el.propTam.value = item.tam;
     if (item.type === "campo") {
       el.propExtra.textContent = `TAM ${item.tam} (canvas). Na tela real o CSLE ocupa ~TAM+2 pelos [ ]. Máx: ${maxTamFor(item)}`;
+    } else if (item.type === "label") {
+      el.propExtra.textContent = `Largura da caixa (não o texto). Texto alinha à direita. Ex.: tam 12 com campo na col 14.`;
     } else {
       el.propExtra.textContent = `col,lin,tam → ${item.col},${item.lin},${item.tam} · Máx: ${maxTamFor(item)}`;
     }
