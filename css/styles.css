@@ -341,7 +341,19 @@ button, input, textarea { font: inherit; color: inherit; }
   z-index: 5;
 }
 
-.item.label { background: var(--label); color: #334155; justify-content: flex-end; font-weight: 600; }
+.item.label {
+  background: var(--label);
+  color: #334155;
+  justify-content: flex-end;
+  font-weight: 600;
+  padding: 0 10px 0 2px;
+}
+
+/* Consistem: label alinhada à direita, colada no campo */
+.item.label .item-label {
+  text-align: right;
+}
+
 .item.campo { background: var(--campo); font-family: var(--mono); }
 .item.display { background: var(--display); color: #355a3d; }
 .item.botao,
