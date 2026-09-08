@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CamposCSW — Layout visual CSW</title>
-  <link rel="stylesheet" href="css/styles.css?v=15" />
+  <link rel="stylesheet" href="css/styles.css?v=16" />
 </head>
 <body>
   <header class="topbar">
@@ -117,8 +117,8 @@
       </section>
       <section>
         <h2>Importar</h2>
-        <p class="hint">Aceita <code>csw:</code>, <code>%CSLE</code>, <code>gridConf</code> e <code>%CSUTIMM</code>.</p>
-        <textarea id="importIn" placeholder="; csw:label:1,1,15,Empresas&#10;set TABGRID(1)=&quot;; csw:gridConf:cod=1; LinPos=5; Altura=18; ...&#10;1000ON do ^%CSLE(1,16,4,..." spellcheck="false"></textarea>
+        <p class="hint">Aceita <code>csw:</code>, <code>%CSLE</code>, <code>TABGRID</code>/<code>gridConf</code> (só LinPos, Altura, LinIni, LinFim) e <code>%CSUTIMM</code>.</p>
+        <textarea id="importIn" placeholder="; csw:label:1,1,15,Empresas&#10;set TABGRID(1)=&quot;; csw:gridConf:... LinPos=5; Altura=18; LinIni=5; LinFim=24; ...&#10;1000ON do ^%CSLE(1,16,4,..." spellcheck="false"></textarea>
         <button type="button" id="btnApplyImport" class="btn primary full">Aplicar no canvas</button>
       </section>
     </aside>
@@ -130,6 +130,6 @@
     <button type="button" data-action="delete" class="danger" role="menuitem">Excluir</button>
   </div>
 
-  <script src="js/app.js?v=15"></script>
+  <script src="js/app.js?v=16"></script>
 </body>
 </html>

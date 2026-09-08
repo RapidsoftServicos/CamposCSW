@@ -82,14 +82,24 @@
   }
 
   function gridLinFim(item) {
+    if (item.linFim != null && !Number.isNaN(Number(item.linFim))) {
+      return Math.max(item.lin, Math.round(Number(item.linFim)));
+    }
     return item.lin + gridAltura(item) - 1;
+  }
+
+  function gridLinIni(item) {
+    if (item.linIni != null && !Number.isNaN(Number(item.linIni))) {
+      return Math.round(Number(item.linIni));
+    }
+    return item.lin;
   }
 
   /** No Faces: height = min(Altura+3, LinFim−LinPos+3) → com LinFim=LinPos+Altura−1 vira Altura+2. */
   function gridVisualFim(item) {
     const linPos = item.lin;
     const altura = gridAltura(item);
-    const linFim = linPos + altura - 1;
+    const linFim = gridLinFim(item);
     const limite = linFim - linPos + 3;
     const heigth = Math.min(altura + 3, limite);
     return linPos + heigth - 1;
@@ -101,13 +111,50 @@
     return Math.min(state.rows, gridVisualFim(grid) + 1);
   }
 
+  function syncGridBounds(item) {
+    item.linIni = item.lin;
+    item.linFim = item.lin + gridAltura(item) - 1;
+  }
+
   function gridConfLine(item) {
     const cod = item.cod || 1;
     const linPos = item.lin;
     const altura = gridAltura(item);
-    const linIni = linPos;
+    const linIni = gridLinIni(item);
     const linFim = gridLinFim(item);
     return `set TABGRID(${cod})="; csw:gridConf:cod=${cod}; LinPos=${linPos}; Altura=${altura}; LinIni=${linIni}; LinFim=${linFim}; HabilitaNavegacao=1;"`;
+  }
+
+  /** Lê só LinPos / Altura / LinIni / LinFim de qualquer linha TABGRID ou gridConf. */
+  function parseGridLayoutKeys(rawLine) {
+    const line = String(rawLine);
+    if (!/gridConf|TABGRID\s*\(/i.test(line)) return null;
+    if (/gridCols/i.test(line)) return null;
+
+    const get = (key) => {
+      const km = line.match(new RegExp(`\\b${key}\\s*=\\s*([0-9]+(?:\\.[0-9]+)?)`, "i"));
+      return km ? Number(km[1]) : null;
+    };
+
+    const linPos = get("LinPos");
+    const altura = get("Altura");
+    const linIni = get("LinIni");
+    const linFim = get("LinFim");
+    if (linPos == null && altura == null && linIni == null && linFim == null) return null;
+
+    const pos = linPos ?? linIni ?? 5;
+    let alt = altura;
+    if (alt == null && linFim != null) alt = Math.max(1, Math.round(linFim - pos + 1));
+    if (alt == null) alt = 14;
+    const ini = linIni ?? pos;
+    const fim = linFim ?? pos + alt - 1;
+
+    return {
+      lin: Math.round(pos),
+      altura: Math.max(1, Math.round(alt)),
+      linIni: Math.round(ini),
+      linFim: Math.round(fim),
+    };
   }
 
   function maxTamFor(item) {
@@ -161,6 +208,8 @@
       item.tam = state.cols;
       item.altura = Math.max(1, Math.round(overrides.altura ?? def.altura ?? 14));
       item.cod = overrides.cod ?? 1;
+      item.linIni = overrides.linIni ?? item.lin;
+      item.linFim = overrides.linFim ?? (item.lin + item.altura - 1);
       item.text = overrides.text ?? "Grid";
     }
     return item;
@@ -327,6 +376,7 @@
     // Reserva 2 linhas do Faces (toolbar) para o grid ainda caber na AJ
     const maxAlt = Math.max(1, state.rows - item.lin - 1);
     item.altura = clamp(Math.round(Number(nextAltura) || 1), 1, maxAlt);
+    syncGridBounds(item);
   }
 
   function adjustButtonsBelowGrid() {
@@ -631,6 +681,7 @@
         item.col = 1;
         item.lin = Math.round(clamp(startLin + dy / CELL_H, 1, state.rows));
         setItemAltura(item, item.altura);
+        syncGridBounds(item);
       } else {
         item.col = snapCol(clamp(startCol + dx / CELL_W, 1, state.cols));
         item.lin = Math.round(clamp(startLin + dy / CELL_H, 1, state.rows));
@@ -700,6 +751,7 @@
       item.col = 1;
       item.lin = Math.round(clamp(Number(el.propLin.value) || 1, 1, state.rows));
       setItemAltura(item, Number(el.propTam.value) || 1);
+      syncGridBounds(item);
     } else {
       item.col = snapCol(clamp(Number(el.propCol.value) || 1, 1, state.cols));
       item.lin = Math.round(clamp(Number(el.propLin.value) || 1, 1, state.rows));
@@ -786,26 +838,23 @@
         }
       }
 
-      let m = line.match(/csw:aj:([^,]+),([^,\s;]+)/i);
+      let       m = line.match(/csw:aj:([^,]+),([^,\s;]+)/i);
       if (m) {
         cols = Number(m[1]);
         rows = Number(m[2]);
         return;
       }
 
-      m = line.match(/csw:gridConf:([^"]+)/i) || line.match(/gridConf:([^"]+)/i);
-      if (m || /csw:gridConf:/i.test(line)) {
-        const body = (m ? m[1] : line).replace(/^;?\s*/, "");
-        const get = (key) => {
-          const km = body.match(new RegExp(`${key}\\s*=\\s*([^;]+)`, "i"));
-          return km ? Number(String(km[1]).trim()) : null;
-        };
-        const cod = get("cod") || 1;
-        const linPos = get("LinPos") || 5;
-        const altura = get("Altura") || 14;
-        const linFim = get("LinFim");
-        const h = linFim && linPos ? Math.max(1, linFim - linPos + 1) : altura;
-        items.push(createItem("grid", { lin: linPos, altura: h || altura, cod, text: "Grid" }));
+      // TABGRID / gridConf: ignora cod, HabilitaNavegacao, LabelEdit etc. — só layout
+      const gridLayout = parseGridLayoutKeys(line);
+      if (gridLayout) {
+        items.push(createItem("grid", {
+          lin: gridLayout.lin,
+          altura: gridLayout.altura,
+          linIni: gridLayout.linIni,
+          linFim: gridLayout.linFim,
+          text: "Grid",
+        }));
         gridCount++;
         pendingComment = "";
         return;
