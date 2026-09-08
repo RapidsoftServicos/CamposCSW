@@ -930,15 +930,13 @@
     el.ajCols.value = 108;
     el.ajRows.value = 26;
     state.items = [
-      createItem("label", { col: 1, lin: 3, tam: 18, text: "Data Reserva De*" }),
-      createItem("campo", { col: 19, lin: 3, tam: 5, id: "cp1100", labelNum: 1100, varName: "DATINI" }),
-      createItem("label", { col: 1, lin: 3, tam: 30, text: "Até*" }),
-      createItem("campo", { col: 31, lin: 3, tam: 5, id: "cp1200", labelNum: 1200, varName: "DATFIM" }),
-      createItem("label", { col: 1, lin: 4, tam: 18, text: "Natureza*" }),
-      createItem("btnConsultar", { col: 96, lin: 3, tam: 12 }),
-      createItem("grid", { lin: 5, altura: 18, cod: 1 }),
-      createItem("botao", { col: 1, lin: 25, tam: 15, id: "btSalvar", text: "Salvar" }),
-      createItem("botao", { col: 16.5, lin: 25, tam: 15, id: "btCancelar", text: "Cancelar" }),
+      createItem("grid", {
+        lin: 5,
+        altura: 18,
+        linIni: 5,
+        linFim: 24,
+        cod: 1,
+      }),
     ];
     state.selectedId = null;
     render();
