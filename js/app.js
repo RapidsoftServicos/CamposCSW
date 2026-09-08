@@ -2,10 +2,12 @@
   const CELL_W = 14;
   const CELL_H = 28;
   const HALF = 0.5;
+  const DEFAULT_COLS = 80;
+  const DEFAULT_ROWS = 17;
 
   const state = {
-    cols: 80,
-    rows: 17,
+    cols: DEFAULT_COLS,
+    rows: DEFAULT_ROWS,
     layoutMode: "sem-tab",
     items: [],
     selectedId: null,
@@ -242,14 +244,21 @@
   }
 
   function syncAj() {
-    state.cols = clamp(Number(el.ajCols.value) || 80, 20, 108);
-    state.rows = clamp(Number(el.ajRows.value) || 17, 5, 28);
+    state.cols = clamp(Number(el.ajCols.value) || DEFAULT_COLS, 20, 108);
+    state.rows = clamp(Number(el.ajRows.value) || DEFAULT_ROWS, 5, 28);
     el.ajCols.value = state.cols;
     el.ajRows.value = state.rows;
     el.windowTitle.textContent = `AJ ${state.cols} × ${state.rows}`;
     el.ajBadge.textContent = `${state.cols} × ${state.rows}`;
     el.canvas.style.width = `${state.cols * CELL_W}px`;
     el.canvas.style.height = `${state.rows * CELL_H}px`;
+  }
+
+  function applyDefaultAj() {
+    el.ajCols.value = DEFAULT_COLS;
+    el.ajRows.value = DEFAULT_ROWS;
+    state.cols = DEFAULT_COLS;
+    state.rows = DEFAULT_ROWS;
   }
 
   function validate() {
@@ -544,8 +553,7 @@
 
   function loadExampleTab() {
     hideItemMenu();
-    el.ajCols.value = 80;
-    el.ajRows.value = 17;
+    // Mantém AJ atual do usuário; se quiser resetar, descomente applyDefaultAj()
     document.querySelector('input[name="layoutMode"][value="com-tab"]').checked = true;
     setLayoutMode("com-tab");
     state.items = [
@@ -563,8 +571,6 @@
 
   function loadExampleNoTab() {
     hideItemMenu();
-    el.ajCols.value = 70;
-    el.ajRows.value = 26;
     document.querySelector('input[name="layoutMode"][value="sem-tab"]').checked = true;
     setLayoutMode("sem-tab");
     state.items = [
@@ -663,5 +669,6 @@
   });
 
   setLayoutMode("sem-tab");
+  applyDefaultAj();
   render();
 })();
