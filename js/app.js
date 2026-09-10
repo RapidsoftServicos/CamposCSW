@@ -203,6 +203,11 @@
       tam: snapCol(overrides.tam ?? def.tam),
       labelNum: overrides.labelNum ?? ((type === "campo" || type === "multiselect") ? Number(String(id).replace(/\D/g, "")) || 1000 : null),
     };
+    // Label sempre na coluna 1 — posiciona só ajustando TAM (texto à direita na caixa).
+    if (type === "label") {
+      item.col = 1;
+      item.tam = Math.max(1, Math.round(Number(item.tam) || def.tam));
+    }
     if (type === "grid") {
       item.col = 1;
       item.tam = state.cols;
@@ -250,8 +255,9 @@
     if (!item) return { text: "", hint: "", copyText: "" };
 
     if (item.type === "label") {
-      const text = `\t; csw:label:${fmt(item.col)},${item.lin},${fmt(item.tam)},${item.text}`;
-      return { text, hint: "Tag de label", copyText: text };
+      item.col = 1;
+      const text = `\t; csw:label:1,${item.lin},${fmt(item.tam)},${item.text}`;
+      return { text, hint: "Tag de label (coluna 1 — ajuste só o TAM)", copyText: text };
     }
 
     if (item.type === "display") {
@@ -431,18 +437,19 @@
       }
     });
     for (const label of state.items.filter((i) => i.type === "label")) {
+      label.col = 1;
       const campo = state.items
-        .filter((i) => (i.type === "campo" || i.type === "multiselect") && i.lin === label.lin && i.col > label.col)
+        .filter((i) => (i.type === "campo" || i.type === "multiselect") && i.lin === label.lin && i.col > 1)
         .sort((a, b) => a.col - b.col)[0];
       if (!campo) continue;
-      const ideal = snapCol(campo.col - label.col);
+      const ideal = Math.max(1, Math.round(campo.col - 1));
       if (ideal - label.tam >= 2) {
         msgs.push(`${label.text || label.id}: TAM ${fmt(label.tam)} curto (ideal ~${fmt(ideal)} até o campo)`);
       }
     }
-    const labelTams = state.items.filter((i) => i.type === "label" && i.col === 1).map((i) => i.tam);
+    const labelTams = state.items.filter((i) => i.type === "label").map((i) => i.tam);
     if (labelTams.length >= 2 && new Set(labelTams.map(fmt)).size > 1) {
-      msgs.push("Labels na col 1 com TAM diferente → escada no Consistem (use o mesmo TAM)");
+      msgs.push("Labels com TAM diferente → escada no Consistem (use o mesmo TAM)");
     }
     el.warnings.textContent = msgs.join(" · ");
   }
@@ -481,16 +488,17 @@
     state.rows = DEFAULT_ROWS;
   }
 
-  /** Estica labels até a coluna do campo da mesma linha (padrão Consistem: TAM ≈ COL_campo − COL_label). */
+  /** Estica labels até a coluna do campo da mesma linha (padrão: col=1 → TAM ≈ COL_campo − 1). */
   function stretchLabelsToFields() {
     let n = 0;
     for (const label of state.items.filter((i) => i.type === "label")) {
+      label.col = 1;
       const campo = state.items
-        .filter((i) => (i.type === "campo" || i.type === "multiselect") && i.lin === label.lin && i.col > label.col)
+        .filter((i) => (i.type === "campo" || i.type === "multiselect") && i.lin === label.lin && i.col > 1)
         .sort((a, b) => a.col - b.col)[0];
       if (!campo) continue;
-      const target = snapCol(campo.col - label.col);
-      if (target >= 1 && Math.abs(label.tam - target) > 0.01) {
+      const target = Math.max(1, Math.round(campo.col - 1));
+      if (Math.abs(label.tam - target) > 0.01) {
         setItemTam(label, target);
         n += 1;
       }
@@ -552,24 +560,25 @@
     el.propsSection.classList.toggle("hidden", !item);
     if (!item) return;
     const isGrid = item.type === "grid";
+    const isLabel = item.type === "label";
     el.propId.value = item.id;
     el.propText.value = item.text || "";
     el.propVarRow.classList.toggle("hidden", item.type !== "campo");
-    el.propColRow.classList.toggle("hidden", isGrid);
+    el.propColRow.classList.toggle("hidden", isGrid || isLabel);
     el.propVar.value = item.varName || "";
-    el.propCol.value = item.col;
+    el.propCol.value = isLabel ? 1 : item.col;
     el.propLin.value = item.lin;
     el.propTam.value = isGrid ? item.altura : item.tam;
     el.propLinLabel.textContent = isGrid ? "LinPos" : "Linha";
     el.propTamLabel.textContent = isGrid ? "Altura" : "Tamanho";
     if (item.type === "campo") {
       el.propExtra.textContent = `TAM ${item.tam} (canvas). Na tela real o CSLE ocupa ~TAM+2 pelos [ ]. Máx: ${maxTamFor(item)}`;
-    } else if (item.type === "label") {
+    } else if (isLabel) {
       const campo = state.items
-        .filter((i) => (i.type === "campo" || i.type === "multiselect") && i.lin === item.lin && i.col > item.col)
+        .filter((i) => (i.type === "campo" || i.type === "multiselect") && i.lin === item.lin && i.col > 1)
         .sort((a, b) => a.col - b.col)[0];
-      const ideal = campo ? fmt(snapCol(campo.col - item.col)) : "COL_campo−1";
-      el.propExtra.textContent = `Caixa da label (texto à direita). Para colar no campo use TAM≈${ideal}, não o tamanho da palavra.`;
+      const ideal = campo ? fmt(snapCol(campo.col - 1)) : "COL_campo−1";
+      el.propExtra.textContent = `Sempre coluna 1 — aumente o TAM até o campo (ideal ≈${ideal}). Texto alinha à direita.`;
     } else if (isGrid) {
       el.propExtra.textContent = `No Consistem o grid cobre até L${gridVisualFim(item)} (não só LinFim=${gridLinFim(item)}). Botões: ≥ ${gridVisualFim(item) + 1}.`;
     } else {
@@ -582,7 +591,10 @@
     state.items
       .filter((i) => i.type === "label")
       .sort((a, b) => a.lin - b.lin || a.col - b.col)
-      .forEach((i) => lines.push(`; csw:label:${fmt(i.col)},${i.lin},${fmt(i.tam)},${i.text}`));
+      .forEach((i) => {
+        i.col = 1;
+        lines.push(`; csw:label:1,${i.lin},${fmt(i.tam)},${i.text}`);
+      });
     const displays = state.items.filter((i) => i.type === "display");
     if (displays.length && lines.length) lines.push("");
     displays
@@ -676,12 +688,18 @@
         const facesH = Math.max(3, Math.round(startFacesH + dy / CELL_H));
         setItemAltura(item, facesH - 2);
       } else if (resizingH) {
+        if (item.type === "label") item.col = 1;
         setItemTam(item, startTam + dx / CELL_W);
       } else if (item.type === "grid") {
         item.col = 1;
         item.lin = Math.round(clamp(startLin + dy / CELL_H, 1, state.rows));
         setItemAltura(item, item.altura);
         syncGridBounds(item);
+      } else if (item.type === "label") {
+        // Coluna fixa em 1: arraste só muda a linha; largura = TAM (borda direita).
+        item.col = 1;
+        item.lin = Math.round(clamp(startLin + dy / CELL_H, 1, state.rows));
+        setItemTam(item, item.tam);
       } else {
         item.col = snapCol(clamp(startCol + dx / CELL_W, 1, state.cols));
         item.lin = Math.round(clamp(startLin + dy / CELL_H, 1, state.rows));
@@ -752,6 +770,10 @@
       item.lin = Math.round(clamp(Number(el.propLin.value) || 1, 1, state.rows));
       setItemAltura(item, Number(el.propTam.value) || 1);
       syncGridBounds(item);
+    } else if (item.type === "label") {
+      item.col = 1;
+      item.lin = Math.round(clamp(Number(el.propLin.value) || 1, 1, state.rows));
+      setItemTam(item, Number(el.propTam.value) || 1);
     } else {
       item.col = snapCol(clamp(Number(el.propCol.value) || 1, 1, state.cols));
       item.lin = Math.round(clamp(Number(el.propLin.value) || 1, 1, state.rows));
@@ -862,7 +884,8 @@
 
       m = line.match(/csw:label:([^,]+),([^,]+),([^,]+),(.+)$/i);
       if (m) {
-        items.push(createItem("label", { col: Number(m[1]), lin: Number(m[2]), tam: Number(m[3]), text: m[4].trim() }));
+        // Import: força coluna 1 (padrão Consistem); TAM vem da tag.
+        items.push(createItem("label", { col: 1, lin: Number(m[2]), tam: Number(m[3]), text: m[4].trim() }));
         tagCount++;
         pendingComment = "";
         return;

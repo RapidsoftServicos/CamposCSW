@@ -26,11 +26,14 @@ Publicado via **GitHub Pages**:
 
 ### Labels (importante)
 
+- Sempre na **coluna 1** — não mude a coluna; só aumente/diminua o `TAM`.
+- Ex.: `; csw:label:1,1,10,Máscara` (campo na col. 11 → `TAM ≈ 10`).
 - `TAM` = **largura da caixa**, não o tamanho da palavra.
 - Texto alinha à **direita** dentro da caixa.
-- Todas as labels da mesma coluna devem ter o **mesmo TAM**.
+- Todas as labels devem ter o **mesmo TAM** (alinham na mesma coluna).
 - Com campo na coluna 14 → labels com `TAM ≈ 13` (ex.: `; csw:label:1,1,13,Código`).
 - Botão **Esticar labels até o campo** ajusta o TAM até a coluna do CSLE.
+- No editor a coluna da label fica travada em 1 (arraste só muda a linha).
 
 ### Grid
 
